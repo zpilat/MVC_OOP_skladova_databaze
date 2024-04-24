@@ -21,8 +21,8 @@ class Model:
     def fetch_data(self, table):
         query = f"SELECT * FROM {table}"
         self.cursor.execute(query)
-        return self.cursor.fetchall()  # Vrátí všechna data z tabulky
-
+        return self.cursor.fetchall() # Vrátí všechna data z tabulky
+        
     # Destruktor pro uzavření databázového připojení.
     def __del__(self):
         self.conn.close()
@@ -36,11 +36,47 @@ class View:
         self.root = root
         self.root.title('Zobrazení databáze')  # Nastaví titulek okna
         self.controller = controller
-        self.current_tree_view = None  # Tady je uchováván aktuální TreeView        
-        
-        self.initialize_menu(self.root)
-        self.initialize_frame(self.root)
+        self.current_tree_view = None  # Tady je uchováván aktuální TreeView
 
+  
+    # Metoda pro zobrazení dat v GUI.
+    def show_data(self, tree_view_type, data, col_names):
+         # Přepne na požadovaný TreeView
+        self.switch_tree_view(tree_view_type, col_names)
+        # Přidá data
+        self.current_tree_view.add_data(data)
+        
+
+    # Metoda na smazání staré a vytvoření nové instance Treeview dle vybrané tabulky databáze
+    def switch_tree_view(self, tree_view_type, col_names):
+        # Odstranění aktuálního TreeView, pokud existujen
+        if self.current_tree_view is not None:
+            self.current_tree_view.frame.destroy()
+        # Vytvoření nového TreeView podle zadaného typu
+        if tree_view_type == "sklad":
+            self.current_tree_view = SkladTreeView(self.root, self.controller, col_names)
+        elif tree_view_type == "audit_log":
+            self.current_tree_view = AuditLogTreeView(self.root, self.controller, col_names)          
+        # Přidat další podmínky pro další typy TreeView 
+
+
+
+# Základní třída na zobrazení Treeview a vytvoření hlavních frame a menu aplikace
+class BaseTreeView:
+    def __init__(self, parent, controller, col_names):
+        self.parent = parent
+        self.controller = controller
+        self.col_names = col_names
+        
+        self.initialize_menu(self.parent)
+        self.initialize_frame(self.parent)
+        
+        self.tree = ttk.Treeview(self.tree_frame, show='headings', height=30)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        self.scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side=tk.RIGHT, fill="y")
 
         # Definice slovníku na přiřazení lidských názvů sloupců tabulky podle slovníku
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -58,21 +94,32 @@ class View:
                         'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
                         'Pouzite_zarizeni': 'Použité zařízení'}
 
-    # Inicializace Treeview a scrollbaru
-    def initialize_treeview(self):   
-        self.tree = ttk.Treeview(self.tree_frame, show='headings', height=30)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Definice sloupců, které mají zaškrtávací políčko (check button)
+        self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II',
+                              'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE',
+                              'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
+
+        # Definice sloupců, které mají být skryté v TreeView
+        self.hidden_columns = ('Kriticky_dil', 'Objednano', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
+                               'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1',
+                               'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
         
-        self.scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=self.scrollbar.set)
-        self.scrollbar.pack(side=tk.RIGHT, fill="y")
+        # Definice sloupců, které se v TreeView zobrazí
+        self.shown_columns = tuple(col for col in self.col_names if col not in self.hidden_columns)
+    
+        # Vytvoření lidských názvů sloupců tabulek a zobrazovaných sloupců v Treeview
+        self.hum_col_names = tuple(self.tab2hum[col] for col in self.col_names)
+        self.shown_hum_col_names = tuple(self.tab2hum[col] for col in self.shown_columns)
+
+        print(self.shown_columns, self.hum_col_names, self.shown_hum_col_names)
+        
 
 
     # Inicializace menu
-    def initialize_menu(self, root):
+    def initialize_menu(self, parent):
         # Vytvoření menu a jeho nastavení jako hlavního menu aplikace
-        self.menu_bar = tk.Menu(root)
-        root.config(menu=self.menu_bar)
+        self.menu_bar = tk.Menu(parent)
+        parent.config(menu=self.menu_bar)
 
         # Přidání "Zobrazení" menu
         show_menu = tk.Menu(self.menu_bar, tearoff=0)
@@ -83,10 +130,10 @@ class View:
 
 
     # Inicializace různých Frame
-    def initialize_frame(self, root):
+    def initialize_frame(self, parent):
 
         # Hlavní Frame obsahující všechny ostatní frame
-        self.frame = tk.Frame(root)
+        self.frame = tk.Frame(parent)
         self.frame.pack(fill=tk.BOTH, expand=True)     
 
         # Vytvoření Frame pro vyhledávání a filtrovací check buttony
@@ -104,8 +151,8 @@ class View:
 
     # Metoda na vytvoření sloupců Treeview
     def setup_columns(self, col_widths=None):
-        self.tree['columns'] = self.hum_col_names
-        for idx, col in enumerate(self.hum_col_names):
+        self.tree['columns'] = self.shown_hum_col_names
+        for idx, col in enumerate(self.shown_columns):
             width = 100 if col_widths is None else col_widths[idx]
             self.tree.heading(col, text=col)
             self.tree.column(col, width=width, anchor='center')
@@ -114,66 +161,16 @@ class View:
     # Metoda na vložení dat do Treeview
     def add_data(self, data):
         for item in self.tree.get_children():
-            self.tree.delete(item)
+            self.tree.delete(item) 
         for row in data:
             self.tree.insert('', tk.END, values=row)
-
-    # Metoda pro zobrazení dat v GUI.
-    def show_data(self, tree_view_type, data, col_names):
-         # Přepne na požadovaný TreeView
-        self.switch_tree_view(tree_view_type, col_names)
-        # Přidá data
-        self.current_tree_view.add_data(data)
-        
-
-    # Metoda na smazání staré a vytvoření nové instance Treeview dle vybrané tabulky databáze
-    def switch_tree_view(self, tree_view_type, col_names):
-        # Odstranění aktuálního TreeView, pokud existujen
-        if self.current_tree_view is not None:
-            self.current_tree_view.frame.destroy()
-        # Vytvoření nového TreeView podle zadaného typu
-        if tree_view_type == "sklad":
-            self.current_tree_view = SkladView(self.root, self.controller, col_names)
-        elif tree_view_type == "audit_log":
-            self.current_tree_view = AuditLogView(self.root, self.controller, col_names)          
-        # Přidat další podmínky pro další typy TreeView             
 
 
 
 # Třídy na specializované zobrazení dle zobrazované tabulky
-class SkladView(View):
-    def __init__(self, root, controller, col_names):
-        super().__init__(root, controller)
-        self.col_names = col_names
-        # Vytvoření lidských názvů sloupců vybrané tabulky
-        self.hum_col_names = tuple(self.tab2hum[col] for col in self.col_names)
-        # Inicializace Treeview a scrollbaru
-        self.initialize_treeview()        
-
-        
-        # Definice sloupců, které mají být skryté
-        self.hidden_columns = ('Ucetnictvi', 'Kriticky_dil', 'Objednano', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II',
-                               'DC_XL', 'DAC_XLI_a_II',
-                               'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1',
-                               'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
-
-        # Definice sloupců, které mají zaškrtávací políčko (check button)
-        self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II',
-                              'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE',
-                              'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
-
-       # Definice širokých sloupců
-        self.wide_columns = ('Nazev_dilu')
-
-        # Definice středně širokých sloupců
-        self.med_columns = ('Dodavatel', 'Poznamka')
-
-        # Definice širokých sloupců
-        self.narrow_columns = ('Jednotky', 'Evidencni_cislo', 'Interne_cislo')
-
-        # Definice a nastavení stavů filtrovacích check buttonů na False
-        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
-
+class SkladTreeView(BaseTreeView):
+    def __init__(self, parent, controller, col_names):
+        super().__init__(parent, controller, col_names)
 
         # Vytvoření specifického menu a frame v `self.item_frame` z BaseTreeView
         self.initialize_specific_menu()
@@ -187,22 +184,20 @@ class SkladView(View):
         col_widths = []
         col_params = []
         # Nastavení šířky sloupců a zarovnání textu, včetně skrytí vybraných sloupců
-        for index, col in enumerate(self.col_names):         
-            if col in self.wide_columns:                
-                col_widths.append(400)
-                col_params.append("w")
-            elif col in self.narrow_columns:
-                col_widths.append(25)
-                col_params.append("center")
-            elif col in self.med_columns:
-                col_widths.append(150)
-                col_params.append("w")                
-            elif col in self.hidden_columns:
-                col_widths.append(0)
-                col_params.append("w") 
-            else:
-                col_widths.append(70)
-                col_params.append("center")
+        for index, col in enumerate(self.shown_hum_col_names):
+            match col:
+                case 'Název dílu':
+                    col_widths.append(400)
+                    col_params.append("w")                
+                case 'Dodavatel' | 'Poznamka':
+                    col_widths.append(150)
+                    col_params.append("w")
+                case 'Jednotky' | 'Evidencni_cislo' | 'Interne_cislo':
+                    col_widths.append(25)
+                    col_params.append("center")
+                case _:
+                    col_widths.append(70)
+                    col_params.append("center")
 
         return col_widths, col_params
     
@@ -231,14 +226,9 @@ class SkladView(View):
         # Implementace
         pass
 
-class AuditLogView(View):
-    def __init__(self, root, controller, col_names):
-        super().__init__(root, controller)
-        self.col_names = col_names
-        # Vytvoření lidských názvů sloupců vybrané tabulky
-        self.hum_col_names = tuple(self.tab2hum[col] for col in self.col_names)
-        # Inicializace Treeview a scrollbaru
-        self.initialize_treeview() 
+class AuditLogTreeView(BaseTreeView):
+    def __init__(self, parent, controller, col_names):
+        super().__init__(parent, controller, col_names)
 
         # Vytvoření specifických parametrů zobrazení sloupců
         # Zde neuvádíme col_widths, použijí se výchozí šířky
