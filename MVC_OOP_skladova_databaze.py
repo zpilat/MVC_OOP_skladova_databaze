@@ -43,8 +43,6 @@ class Model:
         """
         self.conn.close()
 
-
-
 class View:
     """
     Třída View se stará o zobrazení uživatelského rozhraní.
@@ -53,16 +51,18 @@ class View:
         """
         Inicializace GUI a nastavení hlavního okna.
         
-        :param root(tk.Tk): Hlavní okno aplikace.
-        :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
+        :param root: Hlavní okno aplikace.
+        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
         self.root.title('Zobrazení databáze')
         self.controller = controller
         self.current_tree_view = None  # Aktuální TreeView pro zobrazení dat
-        self. initialize_menu()
-            
-        # Definice slovníku názvy sloupců v tabulce: lidské názvy s diakritikou
+
+        self.initialize_menu(self.root)
+        self.initialize_frame(self.root)
+
+        self.hidden_columns= {}
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
                         'Nazev_dilu': 'Název dílu', 'Mnozstvi_ks_m_l': 'Akt. množství', 'Jednotky':'Jedn.',
@@ -73,61 +73,11 @@ class View:
                         'KW': 'KW', 'KW1': 'KW1', 'KW2': 'KW2', 'KW3': 'KW3', 'Umisteni': 'Umístění',
                         'Dodavatel': 'Posl. dodavatel', 'Datum_nakupu': 'Datum nákupu',
                         'Cislo_objednavky': 'Objednávka', 'Jednotkova_cena_EUR': 'Cena EUR/ks',
-                        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka',
-                        'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
-                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
-                        'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení'}
+                        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství',
+                        'Cas_operace': 'Čas operace', 'Operaci_provedl': 'Operaci provedl',
+                        'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
+                        'Pouzite_zarizeni': 'Použité zařízení'}
         
-    def initialize_menu(self):
-        """
-        Inicializace společných menu.
-        """
-        # Inicializace hlavního menu aplikace
-        self.menu_bar = tk.Menu(self.root)
-        self.root.config(menu=self.menu_bar)
-
-        # Definování a přidání společných položek menu
-        common_menus = {
-            "Soubor": [
-                ("Export skladu do csv", lambda: self.controller.export_csv('sklad')),
-                ("Export audit_logu do csv", lambda: self.controller.export_csv('audit_log')),
-                "separator",
-                ("Konec", self.root.destroy)
-            ],
-            "Zobrazení": [
-                ("Sklad", lambda: self.controller.show_data('sklad')),
-                ("Auditovací log", lambda: self.controller.show_data('audit_log'))
-            ]
-        }
-        self.update_menu(common_menus)  
-
-    def initialize_frames(self):        
-        """
-        Inicializace společných framů, proběhne až v instanci dceřínné třídy.
-        """
-        self.frame = tk.Frame(self.root)
-        self.frame.pack(fill=tk.BOTH, expand=True)     
-        self.search_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.search_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
-        self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)           
-        self.item_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
-        self.title_frame = tk.Frame(self.item_frame, bg="yellow", borderwidth=2, relief="groove")
-        self.title_frame.pack(side=tk.TOP,fill=tk.X, padx=2, pady=2)   
-        self.show_frame = tk.Frame(self.item_frame, borderwidth=2, relief="groove")
-        self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
-
-    def initialize_searching(self):
-        """
-        Inicializace políčka a tlačítka pro vyhledávání / filtrování.
-        """
-        self.search_entry = tk.Entry(self.search_frame, width=40)
-        self.search_entry.pack(side=tk.LEFT)
-        self.search_button = tk.Button(self.search_frame, text="Filtrovat", command=self.controller.show_data)
-        self.search_button.pack(side=tk.LEFT)
-
-
     def initialize_treeview(self, tree_frame):
         """
         Inicializace TreeView a přidruženého scrollbaru.
@@ -141,28 +91,38 @@ class View:
         self.tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side=tk.RIGHT, fill="y")
 
-
-    def update_menu(self, additional_menus):
+    def initialize_menu(self, root):
         """
-        Aktualizuje hlavní menu aplikace přidáním nových položek menu,
-        včetně oddělovačů mezi některými položkami.
+        Inicializace menu aplikace.
         
-        Parametry:
-            additional_menus (dict): Slovník definující položky menu k přidání.
-                                     Klíč slovníku je název menu a hodnota je seznam
-                                     dvojic (název položky, příkaz) nebo řetězce 'separator'
-                                     pro vložení oddělovače.
+        :param root: Hlavní okno aplikace pro konfiguraci menu.
         """
-        for menu_name, menu_items in additional_menus.items():
-            new_menu = tk.Menu(self.menu_bar, tearoff=0)
-            for item in menu_items:
-                if item == "separator":
-                    new_menu.add_separator()
-                else:
-                    item_name, command = item
-                    new_menu.add_command(label=item_name, command=command)
-            self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
+        self.menu_bar = tk.Menu(root)
+        root.config(menu=self.menu_bar)
 
+        show_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.menu_bar.add_cascade(label="Zobrazení", menu=show_menu)
+
+        show_menu.add_command(label="Sklad", command=lambda: self.controller.show_data('sklad'))
+        show_menu.add_command(label="AuditLog", command=lambda: self.controller.show_data('audit_log'))
+
+    def initialize_frame(self, root):
+        """
+        Inicializace různých frame pro uživatelské rozhraní.
+        
+        :param root: Hlavní okno aplikace pro umístění frame.
+        """
+        self.frame = tk.Frame(root)
+        self.frame.pack(fill=tk.BOTH, expand=True)     
+
+        self.search_frame = tk.Frame(self.frame)
+        self.search_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+    
+        self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
+        self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+             
+        self.item_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
+        self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
 
     def setup_columns(self, col_params):
         """
@@ -174,7 +134,6 @@ class View:
         for idx, col in enumerate(self.col_names):            
             self.tree.heading(col, text=self.tab2hum[col])
             self.tree.column(col, **col_params[idx])
-
 
     def add_data(self, data):
         """
@@ -214,7 +173,6 @@ class View:
             self.current_tree_view = AuditLogView(self.root, self.controller, col_names)
         # Přidání dalších podmínek pro nové typy zobrazení
 
-
 class SkladView(View):
     """
     Třída SkladView pro specifické zobrazení dat skladu. Dědí od třídy View.
@@ -228,19 +186,18 @@ class SkladView(View):
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
         super().__init__(root, controller)
-        self.col_names = col_names
-        self.initialize_frames()
-        self.customize_ui()
+        self.col_names = col_names      
         self.initialize_treeview(self.tree_frame)
-        self.initialize_searching()
 
         self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
-                              'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
-                              'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
+                               'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1',
+                               'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
         self.hidden_columns = self.check_columns + ('Objednano',)
-        
-        col_params = self.col_parameters()
-        self.setup_columns(col_params)
+
+        self.initialize_specific_menu()
+        self.initialize_specific_frame()
+        self.setup_columns(self.col_parameters())
+
 
     def col_parameters(self):
         """
@@ -264,35 +221,26 @@ class SkladView(View):
         return col_params      
 
 
-    def customize_ui(self):
+    def initialize_specific_menu(self):
         """
-        Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
-        """       
-        specialized_menus = {
-            "Skladové karty": [
-                ("Přidat položku", self.add_item),
-                ("Upravit položku", self.open_edit_window),
-                "separator",
-                ("Smazat položku", self.delete_row)
-            ],
-            "Příjem/Výdej": [
-                ("Příjem zboží", lambda: self.prijem_vydej_zbozi(action='prijem')),
-                ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')) 
-            ],
-            "Nákup": [
-                ("Položky k nákupu", lambda: self.load_data(filter_low_stock=True))    
-            ],
-        }
-        self.update_menu(specialized_menus)
-       
+        Vytvoření specifického menu pro sklad.
+        """
+        users_menu = tk.Menu(self.menu_bar, tearoff=0)
+        users_menu.add_command(label="Přidat položku", command=self.add_item)
+        self.menu_bar.add_cascade(label="Skladové položky", menu=users_menu)
+
+    def initialize_specific_frame(self):
+        """
+        Vytvoření specifických frame pro zobrazení informací o skladu.
+        """
+        self.title_frame = tk.Frame(self.item_frame, bg="yellow", borderwidth=2, relief="groove")
+        self.title_frame.pack(side=tk.TOP,fill=tk.X, padx=2, pady=2)   
+
+        self.show_frame = tk.Frame(self.item_frame, borderwidth=2, relief="groove")
+        self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
+
         title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ SKLADOVÉ KARTY")
         title_label.pack(padx=2, pady=2)
-
-    def open_edit_window(self):
-        """
-        Implementace funkcionality pro přidání nové položky do skladu.
-        """
-        pass
 
     def add_item(self):
         """
@@ -300,26 +248,6 @@ class SkladView(View):
         """
         pass
 
-    def delete_row(self):
-        """
-        Implementace funkcionality pro úpravu položky do skladu.
-        """
-        pass
-
-    def prijem_vydej_zbozi(self, action):
-        """
-        Implementace funkcionality pro příjem a výdej zboží ve skladu.
-        """
-        pass
-
-    def load_data(self, filter_low_stock=False):
-        """
-        Implementace funkcionality nahrání dat
-        Už je pro to metoda add_data - je potřeba upravit pro řízení přes kontroler.
-        """
-        pass
-
-    
 class AuditLogView(View):
     """
     Třída AuditLogView pro specifické zobrazení dat audit logu. Dědí od třídy View.
@@ -334,26 +262,27 @@ class AuditLogView(View):
         """
         super().__init__(root, controller)
         self.col_names = col_names
-        self.initialize_frames()        
-        self.customize_ui()
+
         self.initialize_treeview(self.tree_frame)
 
         self.hidden_columns = {'Objednano', 'Poznamka'}
 
-        col_params = self.col_parameters()
-        self.setup_columns(col_params)
+        self.initialize_specific_menu()
+        self.initialize_specific_frame()
+        self.setup_columns(self.col_parameters())
 
 
-    def customize_ui(self):
+    def initialize_specific_menu(self):
         """
-        Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
-        """       
-        specialized_menus = {}
-        self.update_menu(specialized_menus)
-          
-        title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ PŘÍJMU / VÝDEJE")
-        title_label.pack(padx=2, pady=2)       
+        Vytvoření specifického menu pro sklad.
+        """
+        pass
 
+    def initialize_specific_frame(self):
+        """
+        Vytvoření specifických frame pro zobrazení informací o skladu.
+        """
+        pass
 
     def col_parameters(self):
         """
@@ -365,9 +294,9 @@ class AuditLogView(View):
         for index, col in enumerate(self.col_names):
             match col:
                 case 'Nazev_dilu':
-                    col_params.append({"width": 300, "anchor": "w"})                
-                case 'Dodavatel' | 'Cas_operace' | 'Pouzite_zarizeni' | 'Operaci_provedl':
-                    col_params.append({"width": 130, "anchor": "w"})
+                    col_params.append({"width": 400, "anchor": "w"})                
+                case 'Dodavatel' | 'Cas_operace' | 'Pouzite_zarizeni':
+                    col_params.append({"width": 150, "anchor": "w"})
                 case 'Jednotky' | 'Evidencni_cislo' | 'Interne_cislo':
                     col_params.append({"width": 30, "anchor": "center"})
                 case _ if col in self.hidden_columns:
@@ -402,31 +331,6 @@ class Controller:
         data = self.model.fetch_data(table)
         col_names = self.model.fetch_col_names(table)
         self.view.show_data(table, data, col_names)
-
-
-    def export_csv(self, table):
-        """
-        Export dat z vybrané tabulky v GUI.
-        
-        :param table: Název tabulky pro zobrazení.
-        """
-        col_names = self.model.fetch_col_names(table)
-        data = self.model.fetch_data(table)
-
-        # Dialog pro zadání jména souboru
-        csv_file_name = filedialog.asksaveasfilename(defaultextension=".csv",
-                                                     filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],)
-        if not csv_file_name:
-            return
-
-        # Otevření CSV souboru pro zápis
-        with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
-            csv_writer = csv.writer(csv_file)    
-            csv_writer.writerow(col_names)
-            for row in data:
-                csv_writer.writerow(row)
-                
-        tk.messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
 
 
 if __name__ == "__main__":
