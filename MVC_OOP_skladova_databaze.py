@@ -298,7 +298,8 @@ class SkladView(View):
                 ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')) 
             ],
             "Nákup": [
-                ("Položky k nákupu", lambda: self.load_data(filter_low_stock=True))    
+                ("Položky k nákupu", lambda: self.load_data(filter_low_stock=True)),
+                ("Export položky k nákupu", lambda: self.controller.export_csv('sklad', filter='nakup'))
             ],
         }
         return specialized_menus
@@ -540,7 +541,7 @@ class Controller:
         self.view.show_data(table, data, col_names)
 
 
-    def export_csv(self, table):
+    def export_csv(self, table, filter=None):
         """
         Export dat z vybrané tabulky v GUI.
         
@@ -548,6 +549,14 @@ class Controller:
         """
         col_names = self.model.fetch_col_names(table)
         data = self.model.fetch_data(table)
+
+        if table == 'sklad' and filter == 'nakup':
+            filtered_data =[]
+            for row in data:
+                if row[4] > row[7]:
+                    filtered_data.append(row)                
+        else:
+            filtered_data = data
 
         csv_file_name = filedialog.asksaveasfilename(defaultextension=".csv",
                                                      filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],)
@@ -557,7 +566,7 @@ class Controller:
         with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
             csv_writer = csv.writer(csv_file)    
             csv_writer.writerow(col_names)
-            for row in data:
+            for row in filtered_data:
                 csv_writer.writerow(row)
                 
         tk.messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
@@ -566,7 +575,7 @@ class Controller:
 if __name__ == "__main__":
     root = tk.Tk()
     db_path = 'skladova_databaze.db'
-    table = 'sklad'
+    table = 'sklad' # Startovací tabulka pro zobrazení
     controller = Controller(root, db_path)
     controller.show_data(table)
     root.mainloop()
