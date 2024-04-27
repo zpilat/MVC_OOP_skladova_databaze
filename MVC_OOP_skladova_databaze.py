@@ -92,23 +92,15 @@ class View:
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
-        specialized_menus = self.spec_menus()
-        self.update_menu(specialized_menus)
+        self.update_menu(self.spec_menus())
         self.update_frames()
-        # Definice a nastavení stavů filtrovacích check buttonů na False
-        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
         self.initialize_check_buttons()
         self.initialize_treeview(self.tree_frame)
-        # Vytvoření fontu pro větší a tučné písmo
-        self.default_font = tkFont.nametofont("TkDefaultFont")
-        self.custom_font = self.default_font.copy()
-        self.custom_font.config(size=12, weight="bold")
+        self.initialize_fonts()
         self.additional_gui_elements()
         self.selected_option = "PŘÍJEM/VÝDEJ"
-        # Nastavení vzhledu pro tag 'low_stock' skladové množství pod minimálním 
-        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
-        # Označení po kliknutí a vypsání položky do spodního frame:
-####        self.tree.bind('<<TreeviewSelect>>', lambda e: self.show_selected_item_details())
+        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white') # Nastavení vzhledu pro tag 'low_stock'      
+####        self.tree.bind('<<TreeviewSelect>>', lambda e: self.show_selected_item_details())   # Označení položky po kliknutí a vypsání do item_frame:
 
 
     def initialize_menu(self):
@@ -153,6 +145,7 @@ class View:
         self.show_frame = tk.Frame(self.item_frame, borderwidth=2, relief="groove")
         self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
 
+
     def initialize_searching(self):
         """
         Inicializace políčka a tlačítka pro vyhledávání / filtrování.
@@ -168,6 +161,7 @@ class View:
         """
         Nastavení specifických checkbuttonů pro filtrování zobrazených položek.
         """
+        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
         for col in self.check_columns:
             if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):
                 col_name = self.tab2hum[col]
@@ -195,6 +189,15 @@ class View:
         self.scrollbar.pack(side=tk.RIGHT, fill="y")
 
 
+    def initialize_fonts(self):
+        """
+        Inicializace používaných fontů.
+        """ 
+        self.default_font = tkFont.nametofont("TkDefaultFont")
+        self.custom_font = self.default_font.copy()
+        self.custom_font.config(size=12, weight="bold")               
+
+
     def update_menu(self, additional_menus):
         """
         Aktualizuje hlavní menu aplikace přidáním nových položek menu,
@@ -203,7 +206,7 @@ class View:
         Parametry:
             additional_menus (dict): Slovník definující položky menu k přidání.
                                      Klíč slovníku je název menu a hodnota je seznam
-                                     dvojic (název položky, příkaz) nebo řetězce 'separator'
+                                     dvojic (název položky, příkaz) nebo řetězec 'separator'
                                      pro vložení oddělovače.
         """
         for menu_name, menu_items in additional_menus.items():
@@ -215,6 +218,7 @@ class View:
                     item_name, command = item
                     new_menu.add_command(label=item_name, command=command)
             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
+
 
     def update_frames(self):
         """
@@ -237,9 +241,10 @@ class View:
 
     def add_data(self, filter_low_stock=False):
         """
+        Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
         Vložení dat do TreeView. Změna hodnot v check_colums z 01 na NE ANO pro zobrazení.
         Zvýraznění řádků pod minimem. Označení první položky v Treeview.
-        Třídění podle zadané hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně
+        Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
         """
 
         for item in self.tree.get_children():
@@ -273,8 +278,8 @@ class View:
 
         :param data: Data pro filtraci dle search entry.
         :return: Přefiltrovaná data.
-        """
-        search_query = self.search_entry.get()
+        """ 
+        search_query = self.search_entry.get()  # Aktuální hodnota v search entry
 
         if search_query:
             filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
@@ -290,7 +295,7 @@ class View:
             elif self.selected_option == "VÝDEJ":
                 filtered_data = [row for row in filtered_data if row[8] == "VÝDEJ"]
 
-        # Filtrace dat podle zaškrtnutých sloupců pro filtrování
+        # Filtrace dat podle zaškrtnutých check buttonů pro filtrování
         if any(value.get() for value in self.filter_columns.values()):
             filtered_data_temp = []
             for row in filtered_data:
@@ -324,10 +329,7 @@ class View:
     def on_column_click(self, clicked_col):
         """
         Metoda pro třídění dat v tabulce podle kliknutí na název sloupce.
-        Přepnutí stavu třídění normální / reverzní a brazení přefiltrovaných dat.
-        Pokusí se převést hodnotu na float pro řazení číselných hodnot.
-        Čísla mají přednost, takže pro ně vracíme (0, number).
-        Textové hodnoty dostanou nižší prioritu, vracíme (1, value.lower()).
+        Přepnutí stavu třídění normální / reverzní a zobrazení přefiltrovaných dat.
         
         :param clicked_col: název sloupce, na který bylo kliknuto.
         """
@@ -341,6 +343,9 @@ class View:
     def sort_key(self, row):
         """
         Funkce sloužící jako klíč pro třídění dle sloupcu.
+        Pokusí se převést hodnotu na float pro řazení číselných hodnot.
+        Čísla mají přednost, takže pro ně vracíme (0, number).
+        Textové hodnoty dostanou nižší prioritu, vracíme (1, value.lower()).
 
         :param row: porovnávaný řádek / položka v datatabázi.
         """
