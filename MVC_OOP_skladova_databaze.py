@@ -1,10 +1,12 @@
 import sqlite3
 import csv
 import tkinter as tk
-from tkinter import ttk, font, filedialog, messagebox, simpledialog
+from tkinter import ttk, filedialog, messagebox, simpledialog
+import tkinter.font as tkFont
 from datetime import datetime
 import os
 import re
+import sys
 
 class Model:
     """
@@ -61,10 +63,12 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze')
+        self.root.title('Zobrazení databáze HPM HEAT SK - vývojová verze MVC OOP')
         self.controller = controller
-        self.current_tree_view = None  # Aktuální TreeView pro zobrazení dat
-        self.sort_reverse = False  # Výchozí směr řazení je normální (False)
+        self.current_tree_view = None
+        self.current_tree_view_type = None
+        self.sort_reverse = False
+
             
         # Definice slovníku názvy sloupců v tabulce: lidské názvy s diakritikou
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -92,16 +96,21 @@ class View:
         self.initialize_searching()
         specialized_menus = self.spec_menus()
         self.update_menu(specialized_menus)
-        # Zjištění, zda je definována metoda 'update_frames'
-        if hasattr(self.current_tree_view, 'self.update_frames'):
-            self.update_frames()
+        self.update_frames()
+        # Definice a nastavení stavů filtrovacích check buttonů na False
+        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
         self.initialize_check_buttons()
         self.initialize_treeview(self.tree_frame)
+        # Vytvoření fontu pro větší a tučné písmo
+        self.default_font = tkFont.nametofont("TkDefaultFont")
+        self.custom_font = self.default_font.copy()
+        self.custom_font.config(size=12, weight="bold")
         self.additional_gui_elements()
+        self.selected_option = "PŘÍJEM/VÝDEJ"
         # Nastavení vzhledu pro tag 'low_stock' skladové množství pod minimálním 
         self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
         # Označení po kliknutí a vypsání položky do spodního frame:
-        self.tree.bind('<<TreeviewSelect>>', lambda e: self.show_selected_item_details())
+####        self.tree.bind('<<TreeviewSelect>>', lambda e: self.show_selected_item_details())
 
 
     def initialize_menu(self):
@@ -152,7 +161,9 @@ class View:
         """
         self.search_entry = tk.Entry(self.search_frame, width=40)
         self.search_entry.pack(side=tk.LEFT)
-        self.search_button = tk.Button(self.search_frame, text="Filtrovat", command=self.controller.show_data)
+        self.search_button = tk.Button(self.search_frame, text="Filtrovat",
+                                       command=lambda: self.controller.show_data(
+                                           self.current_tree_view_type, self.current_tree_view))
         self.search_button.pack(side=tk.LEFT)
 
 
@@ -208,6 +219,12 @@ class View:
                     new_menu.add_command(label=item_name, command=command)
             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
 
+    def update_frames(self):
+        """
+        Aktualizuje specifické frame pro dané zobrazení.
+        """
+        pass
+
 
     def setup_columns(self, col_params):
         """
@@ -217,41 +234,130 @@ class View:
         """
         self.tree['columns'] = self.col_names
         for idx, col in enumerate(self.col_names):            
-            self.tree.heading(col, text=self.tab2hum[col])
+            self.tree.heading(col, text=self.tab2hum[col], command=lambda c=idx: self.on_column_click(c))
             self.tree.column(col, **col_params[idx])
 
 
-    def add_data(self, data):
+    def add_data(self, filter_low_stock=False, current_tree_view=None):
         """
         Vložení dat do TreeView. Změna hodnot v check_colums z 01 na NE ANO pro zobrazení.
-        Třídění podle vybraného sloupce a směru třídění. Zvýraznění řádků pod minimem.
-        
-        :param data: Data pro zobrazení ve formátu seznamu n-tic.
+        Zvýraznění řádků pod minimem. Označení první položky v Treeview.
+        Třídění podle zadané hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně
         """
+        if current_tree_view:
+            self.current_tree_view = current_tree_view
+        data = self.current_data
 
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        for row in data:
+        filtered_data = self.filter_data(data, filter_low_stock)
+
+
+        sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
+
+        for row in sorted_data:
             row_converted = list(row)
             for index, col in enumerate(self.col_names):
                 if col in self.check_columns:
-                    # Změnit ANO NE na 1 0 pro sloupce 'Ucetnictvi' i pro tabulku audit_log!
-                    # Pak se může zrušit podmínka isinstace a nechat jenom část za else
-                    if isinstance(row[index], str):
-                        row_converted[index] = row[index]
-                    else:
-                        row_converted[index] = "ANO" if row[index] == 1 else "NE"               
-            item_id = self.tree.insert('', tk.END, values=row_converted)
+                    row_converted[index] = "ANO" if row[index] == 1 else "NE"               
 
+            item_id = self.tree.insert('', tk.END, values=row_converted)
 
             if self.current_tree_view_type == 'sklad':                
                 if int(row[7]) < int(row[4]):
-                    self.tree.item(item_id, tags=('low_stock',))
+                    self.tree.item(item_id, tags=('low_stock',))      
 
         self.mark_first_item()
+        
+
+    def filter_data(self, data, filter_low_stock):
+        """
+        Vyfiltrování dat podle zadaných dat v search_entry,
+        zaškrtnutých check buttonů a low stock filtru.
+        V tabulce audit_log filtrace dle comboboxu "PŘÍJEM/VÝDEJ"
+
+        :param data: Data pro filtraci dle search entry.
+        :return: Přefiltrovaná data.
+        """
+        search_query = self.search_entry.get()
+
+        if search_query:
+            filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
+        else:
+            filtered_data = data
+        
+        if filter_low_stock:
+            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
+
+        if self.current_tree_view_type == "audit_log":
+            if self.selected_option == "PŘÍJEM":
+                filtered_data = [row for row in filtered_data if row[8] == "PŘÍJEM"]
+            elif self.selected_option == "VÝDEJ":
+                filtered_data = [row for row in filtered_data if row[8] == "VÝDEJ"]
+
+        # Filtrace dat podle vybraných sloupců pro filtrování
+        if any(value.get() for value in self.filter_columns.values()):
+            filtered_data_temp = []
+            for row in filtered_data:
+                include_row = True  
+                for col, is_filtered_var in self.filter_columns.items():
+                    if is_filtered_var.get(): 
+                        col_index = self.col_names.index(col)  
+                        if row[col_index] != 1: 
+                            include_row = False  
+                            break
+                if include_row:
+                    filtered_data_temp.append(row)
+            filtered_data = filtered_data_temp
+
+        return filtered_data
 
 
+    def toggle_filter(self, col):
+        """
+        Metoda pro filtraci dat v tabulce podle zaškrtnutých check buttonů
+        Přepnutí stavu filtru pro daný sloupec pro tk.Boolean.Var
+        a zobrazení přefiltrovaných dat.
+
+        :param col: název sloupce (check buttonu), který byl zašrtnut / odškrtnut
+        """
+        current_value = self.filter_columns[col].get()
+        self.filter_columns[col].set(not current_value)
+        self.controller.show_data(self.current_tree_view_type, self.current_tree_view)
+
+
+    def on_column_click(self, clicked_col):
+        """
+        Metoda pro třídění dat v tabulce podle kliknutí na název sloupce.
+        Přepnutí stavu třídění normální / reverzní a brazení přefiltrovaných dat.
+        Pokusí se převést hodnotu na float pro řazení číselných hodnot.
+        Čísla mají přednost, takže pro ně vracíme (0, number).
+        Textové hodnoty dostanou nižší prioritu, vracíme (1, value.lower()).
+        
+        :param clicked_col: název sloupce, na který bylo kliknuto.
+        """
+        if clicked_col == self.sort_col:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_col = clicked_col
+            self.sort_reverse = False
+        self.controller.show_data(self.current_tree_view_type, self.current_tree_view)
+        
+    def sort_key(self, row):
+        """
+        Funkce sloužící jako klíč pro třídění dle sloupcu.
+
+        :param row: porovnávaný řádek / položka v datatabázi.
+        """
+        value = row[self.sort_col]
+        try:
+            number = float(value)
+            return (0, number)
+        except ValueError:
+            return (1, value.lower())
+
+        
     def mark_first_item(self):
         """
         Označení první položky v Treeview po načtení nových dat.
@@ -271,13 +377,15 @@ class View:
         :param tree_view_type: Typ zobrazení, např. "sklad".
         :param data: Data pro zobrazení.
         :param col_names: Názvy sloupců dat.
-        """
-        self.current_tree_view_type = tree_view_type
-        self.switch_tree_view(tree_view_type, col_names)
-        self.current_tree_view.add_data(data)
+        """      
+        if tree_view_type == self.current_tree_view_type:
+            self.current_data = data
+        else:
+            self.switch_tree_view(tree_view_type, col_names, data)
+        self.current_tree_view.add_data(current_tree_view=self.current_tree_view)
 
 
-    def switch_tree_view(self, tree_view_type, col_names):
+    def switch_tree_view(self, tree_view_type, col_names, data):
         """
         Přepínání mezi různými TreeViews podle vybrané tabulky databáze.
         
@@ -288,19 +396,19 @@ class View:
             self.current_tree_view.frame.destroy()
 
         if tree_view_type == "sklad":
-            self.current_tree_view = SkladView(self.root, self.controller, col_names)
+            self.current_tree_view = SkladView(self.root, self.controller, col_names, data)
         elif tree_view_type == "audit_log":
-            self.current_tree_view = AuditLogView(self.root, self.controller, col_names)
+            self.current_tree_view = AuditLogView(self.root, self.controller, col_names, data)
         elif tree_view_type == "dodavatele":
-            self.current_tree_view = DodavateleView(self.root, self.controller, col_names)
+            self.current_tree_view = DodavateleView(self.root, self.controller, col_names, data)
         # Přidání dalších podmínek pro nové typy zobrazení
-
+        
 
 class SkladView(View):
     """
     Třída SkladView pro specifické zobrazení dat skladu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, data):
         """
         Inicializace specifického zobrazení pro sklad.
         
@@ -311,6 +419,7 @@ class SkladView(View):
         super().__init__(root, controller)
         self.current_tree_view_type = 'sklad'
         self.col_names = col_names
+        self.current_data = data
         self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
                               'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
                               'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
@@ -321,7 +430,7 @@ class SkladView(View):
         col_params = self.col_parameters()
         self.setup_columns(col_params)
 
-        self.sort_col = 2  # Výchozí sloupec pro řazení pro sklad sloupec 2 pro Evidenční číslo        
+        self.sort_col = 2  # Výchozí sloupec pro třídění pro sklad podle sloupce 2 pro Evidenční číslo
 
 
     def spec_menus(self):
@@ -342,18 +451,11 @@ class SkladView(View):
                 ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')) 
             ],
             "Nákup": [
-                ("Položky k nákupu", lambda: self.load_data(filter_low_stock=True)),
+                ("Položky k nákupu", lambda: self.add_data(filter_low_stock=True)), # bez obnovy dat
                 ("Export položky k nákupu", lambda: self.controller.export_csv('sklad', filter='nakup'))
             ],
         }
         return specialized_menus
-
-
-    def update_frames(self):
-        """
-        Nastavení specifických framů dle typu zobrazených položek.
-        """
-        pass       
 
 
     def col_parameters(self):
@@ -382,7 +484,8 @@ class SkladView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ SKLADOVÉ KARTY")
+        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ SKLADOVÉ KARTY",
+                                    font=self.custom_font)
         self.title_label.pack(padx=2, pady=2)   
    
 
@@ -411,19 +514,12 @@ class SkladView(View):
         """
         pass
 
-    def load_data(self, filter_low_stock=False):
-        """
-        Implementace funkcionality nahrání dat
-        Už je pro to metoda add_data - je potřeba upravit pro řízení přes kontroler.
-        """
-        pass
-
     
 class AuditLogView(View):
     """
     Třída AuditLogView pro specifické zobrazení dat audit logu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, data):
         """
         Inicializace specifického zobrazení pro audit log.
         
@@ -434,6 +530,7 @@ class AuditLogView(View):
         super().__init__(root, controller)
         self.current_tree_view_type = 'audit_log'
         self.col_names = col_names
+        self.current_data = data
         
         self.hidden_columns = ('Objednano', 'Poznamka')
         self.check_columns = ('Ucetnictvi',)
@@ -443,7 +540,7 @@ class AuditLogView(View):
         col_params = self.col_parameters()
         self.setup_columns(col_params)
 
-        self.sort_col = 16  # Výchozí sloupec pro řazení pro audit_log sloupec 16 pro čas operace  
+        self.sort_col = 18  # Výchozí sloupec pro řazení pro audit_log sloupec 18 id  
 
 
     def spec_menus(self):
@@ -460,7 +557,8 @@ class AuditLogView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ PŘÍJMU / VÝDEJE")
+        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ PŘÍJMU / VÝDEJE",
+                                    font=self.custom_font)
         self.title_label.pack(padx=2, pady=2)
 
         self.operation_label = tk.Label(self.search_frame, text="Typ operace:")
@@ -474,9 +572,11 @@ class AuditLogView(View):
         self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)
 
     def on_combobox_change(self, event):
-        selected_option = self.operation_combobox.get()
-        print(f"Vybrána operace: {selected_option}")
-        # Přidat později logiku na základě vybrané možnosti = filtrování dat v audit_logu
+        """
+        Filtrování zobrazovaných dat podle eventu (vybraného filtru) comboboxu.
+        """
+        self.selected_option = self.operation_combobox.get()         
+        self.controller.show_data(self.current_tree_view_type, self.current_tree_view)
 
     def col_parameters(self):
         """
@@ -504,7 +604,7 @@ class DodavateleView(View):
     """
     Třída DodavateleView pro specifické zobrazení dat z tabulky dodavatele. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, data):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
@@ -515,6 +615,7 @@ class DodavateleView(View):
         super().__init__(root, controller)
         self.current_tree_view_type = 'dodavatele'
         self.col_names = col_names
+        self.current_data = data        
         
         self.hidden_columns = ()
         self.check_columns = ()
@@ -541,7 +642,8 @@ class DodavateleView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ DODAVATELŮ")
+        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ DODAVATELŮ",
+                                    font=self.custom_font)
         self.title_label.pack(padx=2, pady=2)
 
 
@@ -579,33 +681,19 @@ class Controller:
         self.db_path = db_path
         self.model = Model(db_path)
         self.view = View(root, self)
-        self.current_table = None
-        self.current_data = None
-        self.current_col_names = None
 
 
-    def show_data(self, table):
+    def show_data(self, table, view_instance = None):
         """
         Zobrazení dat z vybrané tabulky v GUI.
         
         :param table: Název tabulky pro zobrazení.
         """
-        self.current_table = table
-        self.current_data = self.model.fetch_data(table)
-        self.current_col_names = self.model.fetch_col_names(table)
-        self.view.show_data(table, self.current_data, self.current_col_names)
-
-
-    def filter_sort_show_data(self, filter_low_stock=False, sort_col=None):
-        """
-        Obnovení zobrazení aktuálních dat.
-        """
-
-
-
-
-        
-        self.view.add_data(filtered_data)
+        if not view_instance:
+            view_instance = self.view
+        data = self.model.fetch_data(table)
+        col_names = self.model.fetch_col_names(table)
+        view_instance.show_data(table, data, col_names)
 
 
     def export_csv(self, table, filter=None):
@@ -641,6 +729,8 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    if sys.platform.startswith('win'):
+        root.state('zoomed')
     db_path = 'skladova_databaze.db'
     table = 'sklad' # Startovací tabulka pro zobrazení
     controller = Controller(root, db_path)
