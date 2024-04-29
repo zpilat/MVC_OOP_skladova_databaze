@@ -676,18 +676,29 @@ class ItemFrameBase:
         self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
 
 
-    def additional_gui_elements(self, title, order):
+    def additional_gui_elements(self):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        title_label = tk.Label(self.title_frame, bg="yellow", text=title,
-                                font=self.custom_font)
+        table_config = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY", "order": 6},
+                        "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ", "order": 4},
+                        "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE", "order": 1}}
+        self.title = table_config[self.current_table]["title"]
+        self.order = table_config[self.current_table]["order"]
+
+        title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
         title_label.pack(padx=2, pady=2)
-        
         name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font,
-                               text=f"{self.tab2hum[self.col_names[order]]}: \n{str(self.item_values[order])}")
+                              text=f"{self.tab2hum[self.col_names[self.order]]}: \n {str(self.item_values[self.order])}")
         name_label.pack(padx=2, pady=2) 
         
+
+    def get_selected_data(self):
+        """
+        Metoda pro získání dat z vybrané položky z treeview.
+        """
+        self.selected_item = self.tree.selection()[0]
+        self.item_values = self.tree.item(self.selected_item, 'values')
 
 
     def show_selected_item_details(self, event):
@@ -695,28 +706,16 @@ class ItemFrameBase:
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
         Název položky je v title_frame, zbylé informace v show_frame
         """
-        self.clear_item_frame()
-        self.selected_item = self.tree.selection()[0]
-        self.item_values = self.tree.item(self.selected_item, 'values')
+        self.get_selected_data()      
 
-        match self.current_table:
-            case "sklad":
-                title = "ZOBRAZENÍ SKLADOVÉ KARTY"
-                order = 6
-            case "audit_log":
-                title = "ZOBRAZENÍ POHYBŮ NA SKLADĚ"
-                order = 4
-            case "dodavatele":
-                title = "ZOBRAZENÍ DODAVATELE"
-                order = 1
-                
-        self.additional_gui_elements(title, order)        
-        
-        idx = lambda i: i - 1 if i > order else i        
+        self.clear_item_frame()        
+        self.additional_gui_elements()        
+          
         for index, value in enumerate(self.item_values):
-            if index == order: continue   # Nezobrazí znovu název 
-            col_num = idx(index) % 2  # Výpočet čísla sloupce
-            row_num = idx(index) // 2  # Výpočet čísla řádku
+            if index == self.order: continue   # Vynechá název
+            idx = index - 1 if index > self.order else index 
+            col_num = idx % 2  # Výpočet čísla sloupce
+            row_num = idx // 2  # Výpočet čísla řádku
             col_name = self.tab2hum[self.col_names[index]]
             label_text = f"{col_name}: {value}"
             label = tk.Label(self.show_frame, text=label_text, borderwidth=2,
