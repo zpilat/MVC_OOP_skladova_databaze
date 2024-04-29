@@ -99,9 +99,11 @@ class View:
         self.initialize_fonts()
         self.additional_gui_elements()
         self.selected_option = "PŘÍJEM/VÝDEJ"
-        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white') # Nastavení vzhledu pro tag 'low_stock'
-        self.item_frame_base = ItemFrameBase(self.item_frame, self.tree, self.col_names, self.tab2hum)
-        self.tree.bind('<<TreeviewSelect>>', self.item_frame_base.show_selected_item_details)   # Vypsání označené položky do item_frame:
+        # Nastavení vzhledu pro tag 'low_stock'
+        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
+        self.item_frame_base = ItemFrameBase(self.item_frame, self.tree, self.col_names, self.tab2hum, self.current_table)
+        # Reakce na označení položky v treeview
+        self.tree.bind('<<TreeviewSelect>>', self.item_frame_base.show_selected_item_details)   
 
 
     def initialize_menu(self):
@@ -502,7 +504,7 @@ class AuditLogView(View):
         self.col_names = col_names
         self.current_data = data
         
-        self.hidden_columns = ('Objednano', 'Poznamka')
+        self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace')
         self.check_columns = ('Ucetnictvi',)
 
         self.customize_ui()
@@ -554,8 +556,8 @@ class AuditLogView(View):
         for index, col in enumerate(self.col_names):
             match col:
                 case 'Nazev_dilu':
-                    col_params.append({"width": 300, "anchor": "w"})                
-                case 'Dodavatel' | 'Cas_operace' | 'Pouzite_zarizeni' | 'Operaci_provedl':
+                    col_params.append({"width": 230, "anchor": "w"})                
+                case 'Dodavatel' | 'Pouzite_zarizeni':
                     col_params.append({"width": 130, "anchor": "w"})
                 case 'Jednotky' | 'Evidencni_cislo' | 'Interne_cislo':
                     col_params.append({"width": 30, "anchor": "center"})
@@ -626,20 +628,21 @@ class ItemFrameBase:
     """
     Třída ItemFrameBase se stará o tvorbu nových a zobrazení a úpravu vybraných položek.
     """
-    def __init__(self, master, tree, col_names, tab2hum):
+    def __init__(self, master, tree, col_names, tab2hum, current_table):
         """
         Inicializace prvků v item_frame.
         
         :param master: Hlavní frame item_frame, kde se zobrazují informace o položkách.
         :param tree: Treeview, ve kterém se vybere zobrazovaná položka.
         :param col_names: Názvy sloupců zobrazované položky.
-        :param dict_tab2hum Slovník s převodem databázových názvů sloupců na lidské názvy.
-        :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
+        :param dict_tab2hum: Slovník s převodem databázových názvů sloupců na lidské názvy.
+        :param current_table: Aktuálně otevřená tabulka databáze.
         """
         self.master = master
         self.tree = tree
         self.col_names = col_names
         self.tab2hum = tab2hum
+        self.current_table = current_table
         self.initialize_fonts()
         self.initialize_frames()
  
@@ -673,7 +676,7 @@ class ItemFrameBase:
         self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
 
 
-    def additional_gui_elements(self, title):
+    def additional_gui_elements(self, title, order):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
@@ -682,7 +685,7 @@ class ItemFrameBase:
         title_label.pack(padx=2, pady=2)
         
         name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font,
-                               text=f"{self.tab2hum['Nazev_dilu']}: \n{str(self.item_values[6])}")
+                               text=f"{self.tab2hum[self.col_names[order]]}: \n{str(self.item_values[order])}")
         name_label.pack(padx=2, pady=2) 
         
 
@@ -696,11 +699,22 @@ class ItemFrameBase:
         self.selected_item = self.tree.selection()[0]
         self.item_values = self.tree.item(self.selected_item, 'values')
 
-        self. additional_gui_elements("ZOBRAZENÍ SKLADOVÉ KARTY")        
+        match self.current_table:
+            case "sklad":
+                title = "ZOBRAZENÍ SKLADOVÉ KARTY"
+                order = 6
+            case "audit_log":
+                title = "ZOBRAZENÍ POHYBŮ NA SKLADĚ"
+                order = 4
+            case "dodavatele":
+                title = "ZOBRAZENÍ DODAVATELE"
+                order = 1
+                
+        self.additional_gui_elements(title, order)        
         
-        idx = lambda i: i - 1 if i > 6 else i        
+        idx = lambda i: i - 1 if i > order else i        
         for index, value in enumerate(self.item_values):
-            if index == 6: continue   # Nezobrazí znovu název dílu
+            if index == order: continue   # Nezobrazí znovu název 
             col_num = idx(index) % 2  # Výpočet čísla sloupce
             row_num = idx(index) // 2  # Výpočet čísla řádku
             col_name = self.tab2hum[self.col_names[index]]
