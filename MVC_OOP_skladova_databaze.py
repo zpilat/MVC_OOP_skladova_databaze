@@ -3,7 +3,9 @@ import csv
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkFont
-from datetime import datetime
+from tkcalendar import DateEntry
+from datetime import datetime, timedelta
+
 import os
 import re
 import sys
@@ -99,6 +101,7 @@ class View:
         self.initialize_fonts()
         self.additional_gui_elements()
         self.selected_option = "PŘÍJEM/VÝDEJ"
+        self.start_date = None
         # Nastavení vzhledu pro tag 'low_stock'
         self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
         self.item_frame_edit = ItemFrameEdit(self.item_frame, self.tree, self.col_names, self.tab2hum, self.current_table, self.check_columns)
@@ -278,29 +281,31 @@ class View:
         """
         Vyfiltrování dat podle zadaných dat v search_entry,
         zaškrtnutých check buttonů a low stock filtru.
-        V tabulce audit_log filtrace dle comboboxu "PŘÍJEM/VÝDEJ"
+        V tabulce audit_log filtrace dle comboboxu "PŘÍJEM/VÝDEJ" a
+        v rozmezí datumů v date entry.
 
         :param data: Data pro filtraci dle search entry.
         :return: Přefiltrovaná data.
         """ 
-        search_query = self.search_entry.get()  # Aktuální hodnota v search entry
-
-        if search_query:
+        search_query = self.search_entry.get()
+        if search_query: # dle hodnoty v search entry
             filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
         else:
             filtered_data = data
         
-        if filter_low_stock:
+        if filter_low_stock: # dle parametru low stock
             filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
 
-        if self.current_table == "audit_log":
+        if self.current_table == "audit_log": # dle vybrané položky comboboxu příjem / výdej
             if self.selected_option == "PŘÍJEM":
                 filtered_data = [row for row in filtered_data if row[8] == "PŘÍJEM"]
             elif self.selected_option == "VÝDEJ":
                 filtered_data = [row for row in filtered_data if row[8] == "VÝDEJ"]
 
-        # Filtrace dat podle zaškrtnutých check buttonů pro filtrování
-        if any(value.get() for value in self.filter_columns.values()):
+        if self.start_date: # dle rozmezí datumů v date entry       
+            filtered_data = [row for row in filtered_data if self.start_date <= row[12] <= self.end_date or self.start_date <= row[13] <= self.end_date]
+            
+        if any(value.get() for value in self.filter_columns.values()): # dle zaškrtnutých check buttonů
             filtered_data_temp = []
             for row in filtered_data:
                 include_row = True  
@@ -532,6 +537,37 @@ class AuditLogView(View):
         self.operation_combobox.set("PŘÍJEM/VÝDEJ")
         self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)
 
+        today = datetime.now()
+        first_day_of_month = today.replace(day=1)
+        last_day_of_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+
+        self.start_date_entry_label = tk.Label(self.search_frame, text="Počáteční datum:")
+        self.start_date_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.start_date_entry = DateEntry(self.search_frame, width=12, background='darkblue', foreground='white',
+                                          borderwidth=2, year=first_day_of_month.year,
+                                          month=first_day_of_month.month, day=first_day_of_month.day)
+        self.start_date_entry.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.end_date_entry_label = tk.Label(self.search_frame, text="Koncové datum:")
+        self.end_date_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.end_date_entry = DateEntry(self.search_frame, width=12, background='darkblue', foreground='white',
+                                        borderwidth=2, year=last_day_of_month.year,
+                                        month=last_day_of_month.month, day=last_day_of_month.day)
+        self.end_date_entry.pack(side=tk.LEFT, padx=5, pady=5)
+
+        choice_btn = tk.Button(self.search_frame, text="Vyfiltrovat období", command=self.filter_date)
+        choice_btn.pack(side=tk.LEFT, padx=5, pady=5)
+
+
+    def filter_date(self):
+        """
+        Filtrování zobrazovaných dat v rozsahu počátečního a koncového datumu.
+        """
+        self.start_date = datetime.strptime(self.start_date_entry.get(), '%d.%m.%y').strftime('%Y-%m-%d')
+        self.end_date = datetime.strptime(self.end_date_entry.get(), '%d.%m.%y').strftime('%Y-%m-%d')
+        self.controller.show_data(self.current_table)
+
+
     def on_combobox_change(self, event):
         """
         Filtrování zobrazovaných dat podle eventu (vybraného filtru) comboboxu.
@@ -729,6 +765,8 @@ class ItemFrameBase:
             label = tk.Label(self.show_frame, text=label_text, borderwidth=2,
                              relief="ridge", width=28, wraplength=195)
             label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
+
+
        
 class ItemFrameEdit(ItemFrameBase):
     """
