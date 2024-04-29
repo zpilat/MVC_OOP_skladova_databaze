@@ -99,8 +99,9 @@ class View:
         self.initialize_fonts()
         self.additional_gui_elements()
         self.selected_option = "PŘÍJEM/VÝDEJ"
-        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white') # Nastavení vzhledu pro tag 'low_stock'      
-####        self.tree.bind('<<TreeviewSelect>>', lambda e: self.show_selected_item_details())   # Označení položky po kliknutí a vypsání do item_frame:
+        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white') # Nastavení vzhledu pro tag 'low_stock'
+        self.item_frame_base = ItemFrameBase(self.item_frame, self.tree, self.col_names, self.tab2hum)
+        self.tree.bind('<<TreeviewSelect>>', self.item_frame_base.show_selected_item_details)   # Vypsání označené položky do item_frame:
 
 
     def initialize_menu(self):
@@ -140,10 +141,6 @@ class View:
         self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)           
         self.item_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
         self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
-        self.title_frame = tk.Frame(self.item_frame, bg="yellow", borderwidth=2, relief="groove")
-        self.title_frame.pack(side=tk.TOP,fill=tk.X, padx=2, pady=2)   
-        self.show_frame = tk.Frame(self.item_frame, borderwidth=2, relief="groove")
-        self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
 
 
     def initialize_searching(self):
@@ -226,6 +223,11 @@ class View:
         """
         pass
 
+    def additional_gui_elements(self):
+        """
+        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        """
+        pass
 
     def setup_columns(self, col_params):
         """
@@ -237,7 +239,7 @@ class View:
         for idx, col in enumerate(self.col_names):            
             self.tree.heading(col, text=self.tab2hum[col], command=lambda c=idx: self.on_column_click(c))
             self.tree.column(col, **col_params[idx])
-
+   
 
     def add_data(self, filter_low_stock=False):
         """
@@ -365,7 +367,8 @@ class View:
         if first_item:
             self.tree.selection_set(first_item)
             self.tree.focus(first_item)
-      
+
+     
 
 class SkladView(View):
     """
@@ -443,16 +446,6 @@ class SkladView(View):
         return col_params
 
 
-    def additional_gui_elements(self):
-        """
-        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
-        """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ SKLADOVÉ KARTY",
-                                    font=self.custom_font)
-        self.title_label.pack(padx=2, pady=2)   
-   
-
-
     def open_edit_window(self):
         """
         Implementace funkcionality pro přidání nové položky do skladu.
@@ -467,9 +460,23 @@ class SkladView(View):
 
     def delete_row(self):
         """
-        Implementace funkcionality pro úpravu položky do skladu.
+        Vymaže označenou položku, pokud je nulový stav.
         """
-        pass
+      
+        selected_item = self.tree.selection()
+        if selected_item:
+            mnozstvi_ks_m_l = self.tree.item(selected_item[0])['values'][7] #Množství je ve 8. sloupci
+            if mnozstvi_ks_m_l != 0:
+                messagebox.showwarning("Varování", "Nelze smazat položku s nenulovým množstvím!")
+                return           
+            response = messagebox.askyesno("Potvrzení mazání", "Opravdu chcete smazat vybraný řádek?")
+            if response: 
+                evidencni_cislo = self.tree.item(selected_item[0])['values'][2]  #Evidenční číslo je ve 3. sloupci
+######                self.db.delete_row(evidencni_cislo) # Předělat na controller!!!
+                self.tree.delete(selected_item[0])
+                
+        self.controller.show_data(self.current_table)
+        
 
     def prijem_vydej_zbozi(self, action):
         """
@@ -520,10 +527,6 @@ class AuditLogView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ PŘÍJMU / VÝDEJE",
-                                    font=self.custom_font)
-        self.title_label.pack(padx=2, pady=2)
-
         self.operation_label = tk.Label(self.search_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -601,15 +604,6 @@ class DodavateleView(View):
         return specialized_menus
 
 
-    def additional_gui_elements(self):
-        """
-        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
-        """
-        self.title_label = tk.Label(self.title_frame, bg="yellow", text="ZOBRAZENÍ DODAVATELŮ",
-                                    font=self.custom_font)
-        self.title_label.pack(padx=2, pady=2)
-
-
     def col_parameters(self):
         """
         Nastavení specifických parametrů sloupců, jako jsou šířka a zarovnání.
@@ -628,6 +622,93 @@ class DodavateleView(View):
         return col_params 
 
 
+class ItemFrameBase:
+    """
+    Třída ItemFrameBase se stará o tvorbu nových a zobrazení a úpravu vybraných položek.
+    """
+    def __init__(self, master, tree, col_names, tab2hum):
+        """
+        Inicializace prvků v item_frame.
+        
+        :param master: Hlavní frame item_frame, kde se zobrazují informace o položkách.
+        :param tree: Treeview, ve kterém se vybere zobrazovaná položka.
+        :param col_names: Názvy sloupců zobrazované položky.
+        :param dict_tab2hum Slovník s převodem databázových názvů sloupců na lidské názvy.
+        :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
+        """
+        self.master = master
+        self.tree = tree
+        self.col_names = col_names
+        self.tab2hum = tab2hum
+        self.initialize_fonts()
+        self.initialize_frames()
+ 
+
+    def clear_item_frame(self):
+        """
+        Odstranění všech widgetů v title_frame a show_frame
+        """
+        for widget in self.title_frame.winfo_children():
+            widget.destroy()
+        for widget in self.show_frame.winfo_children():
+            widget.destroy()  
+
+
+    def initialize_fonts(self):
+        """
+        Inicializace používaných fontů.
+        """ 
+        self.default_font = tkFont.nametofont("TkDefaultFont")
+        self.custom_font = self.default_font.copy()
+        self.custom_font.config(size=12, weight="bold")
+        
+
+    def initialize_frames(self):
+        """
+        Vytvoření framů ve frame item_frame.
+        """
+        self.title_frame = tk.Frame(self.master, bg="yellow", borderwidth=2, relief="groove")
+        self.title_frame.pack(side=tk.TOP,fill=tk.X, padx=2, pady=2)   
+        self.show_frame = tk.Frame(self.master, borderwidth=2, relief="groove")
+        self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
+
+
+    def additional_gui_elements(self, title):
+        """
+        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        """
+        title_label = tk.Label(self.title_frame, bg="yellow", text=title,
+                                font=self.custom_font)
+        title_label.pack(padx=2, pady=2)
+        
+        name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font,
+                               text=f"{self.tab2hum['Nazev_dilu']}: \n{str(self.item_values[6])}")
+        name_label.pack(padx=2, pady=2) 
+        
+
+
+    def show_selected_item_details(self, event):
+        """
+        Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
+        Název položky je v title_frame, zbylé informace v show_frame
+        """
+        self.clear_item_frame()
+        self.selected_item = self.tree.selection()[0]
+        self.item_values = self.tree.item(self.selected_item, 'values')
+
+        self. additional_gui_elements("ZOBRAZENÍ SKLADOVÉ KARTY")        
+        
+        idx = lambda i: i - 1 if i > 6 else i        
+        for index, value in enumerate(self.item_values):
+            if index == 6: continue   # Nezobrazí znovu název dílu
+            col_num = idx(index) % 2  # Výpočet čísla sloupce
+            row_num = idx(index) // 2  # Výpočet čísla řádku
+            col_name = self.tab2hum[self.col_names[index]]
+            label_text = f"{col_name}: {value}"
+            label = tk.Label(self.show_frame, text=label_text, borderwidth=2,
+                             relief="ridge", width=28, wraplength=195)
+            label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
+       
 
 class Controller:
     """
@@ -672,6 +753,34 @@ class Controller:
                     self.current_view_instance = DodavateleView(self.root, self, col_names, data)
 
         self.current_view_instance.add_data()
+
+
+##    def show_item(self, table):
+##        """
+##        Zobrazení dat z vybrané tabulky v GUI. Pokud se mění tabulka k zobrazení,
+##        vytvoří se nová instance podtřídy View, pokud zůstává tabulka
+##        stejná, pouze se aktulizují zobrazená data.
+##        
+##        :param table: Název tabulky pro zobrazení.
+##        """
+##        data = self.model.fetch_data(table)
+##        col_names = self.model.fetch_col_names(table)
+##
+##        if self.current_view_instance is None:
+##            self.current_view_instance = SkladView(self.root, self, col_names, data)
+##            self.current_table = table
+##        else:
+##            if self.current_table != table:
+##                self.current_table = table
+##                self.current_view_instance.frame.destroy()
+##                if table == "sklad":
+##                    self.current_view_instance = SkladView(self.root, self, col_names, data)
+##                elif table == "audit_log":
+##                    self.current_view_instance = AuditLogView(self.root, self, col_names, data)
+##                elif table == "dodavatele":
+##                    self.current_view_instance = DodavateleView(self.root, self, col_names, data)
+##
+##        self.current_view_instance.add_data()
     
 
     def export_csv(self, table, filter=None):
