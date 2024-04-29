@@ -101,9 +101,9 @@ class View:
         self.selected_option = "PŘÍJEM/VÝDEJ"
         # Nastavení vzhledu pro tag 'low_stock'
         self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
-        self.item_frame_base = ItemFrameBase(self.item_frame, self.tree, self.col_names, self.tab2hum, self.current_table)
+        self.item_frame_edit = ItemFrameEdit(self.item_frame, self.tree, self.col_names, self.tab2hum, self.current_table, self.check_columns)
         # Reakce na označení položky v treeview
-        self.tree.bind('<<TreeviewSelect>>', self.item_frame_base.show_selected_item_details)   
+        self.tree.bind('<<TreeviewSelect>>', self.item_frame_edit.show_selected_item_details)   
 
 
     def initialize_menu(self):
@@ -117,9 +117,9 @@ class View:
         # Definování a přidání společných položek menu
         common_menus = {
             "Soubor": [
-                ("Export skladu do csv", lambda: self.controller.export_csv('sklad')),
-                ("Export audit_logu do csv", lambda: self.controller.export_csv('audit_log')),
-                ("Export dodavatelů do csv", lambda: self.controller.export_csv('dodavatele')),
+                ("Export aktuální databázové tabulky do csv", lambda: self.controller.export_csv(table=self.current_table)),
+                "separator",
+                ("Export aktuálně vyfiltrovaných dat do csv", lambda: self.controller.export_csv(tree=self.tree)),
                 "separator",
                 ("Konec", self.root.destroy)
             ],
@@ -410,17 +410,16 @@ class SkladView(View):
         specialized_menus = {
             "Skladové karty": [
                 ("Přidat položku", self.add_item),
-                ("Upravit položku", self.open_edit_window),
+                ("Upravit položku", lambda: self.item_frame_edit.open_edit_window()),
                 "separator",
-                ("Smazat položku", self.delete_row)
+                ("Smazat položku", self.delete_row),
             ],
             "Příjem/Výdej": [
                 ("Příjem zboží", lambda: self.prijem_vydej_zbozi(action='prijem')),
-                ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')) 
+                ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')), 
             ],
             "Nákup": [
-                ("Položky k nákupu", lambda: self.add_data(filter_low_stock=True)), # bez obnovy dat
-                ("Export položky k nákupu", lambda: self.controller.export_csv('sklad', filter='nakup'))
+                ("Položky pod minimem", lambda: self.add_data(filter_low_stock=True)),
             ],
         }
         return specialized_menus
@@ -447,12 +446,6 @@ class SkladView(View):
                     col_params.append({"width": 70, "anchor": "center"})
         return col_params
 
-
-    def open_edit_window(self):
-        """
-        Implementace funkcionality pro přidání nové položky do skladu.
-        """
-        pass
 
     def add_item(self):
         """
@@ -583,11 +576,11 @@ class DodavateleView(View):
         super().__init__(root, controller)
         self.current_table = 'dodavatele'
         self.col_names = col_names
-        self.current_data = data        
-        
-        self.hidden_columns = ()
-        self.check_columns = ()
+        self.current_data = data
 
+        check_columns = ()
+        hidden_columns = ()
+        
         self.customize_ui()
        
         col_params = self.col_parameters()
@@ -626,9 +619,9 @@ class DodavateleView(View):
 
 class ItemFrameBase:
     """
-    Třída ItemFrameBase se stará o tvorbu nových a zobrazení a úpravu vybraných položek.
+    Třída ItemFrameBase se stará o zobrazení vybraných položek.
     """
-    def __init__(self, master, tree, col_names, tab2hum, current_table):
+    def __init__(self, master, tree, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
         
@@ -643,8 +636,23 @@ class ItemFrameBase:
         self.col_names = col_names
         self.tab2hum = tab2hum
         self.current_table = current_table
+        self.check_columns = check_columns
         self.initialize_fonts()
         self.initialize_frames()
+        self.unit_tuple = ("ks", "kg", "pár", "l", "m")
+        self.suppliers = ('','4TEK', '4tek', '4tek/HSK', 'ABO Slovakia', 'AJ Gas', 'AVT', 'AVT / Ipsen', 'AZ elektro', 'Aloquence',
+                         'Altec', 'Azvaro', 'BM Hydraulika', 'Bellgass', 'Burkert', 'Convec', 'DAC', 'DREAMland', 'Distrelec',
+                         'ELKOP Technik', 'END Armaturen', 'ETTO', 'Ecosond', 'Efteria (battery-import.sk)', 'Ekopis',
+                         'Elektro S.M.S.', 'Elgas', 'Enetex tep', 'Euautomation', 'Famiba', 'Festo', 'Filter Technik Slovakia',
+                         'First montana', 'GAFAAUTO', 'Galtex', 'Gardner Denver', 'Gasbj.sk', 'Gasotech', 'Georgia',
+                         'Georgia-čerpací technika', 'Green Tech', 'Gumex', 'HSH', 'Henkel', 'Henlich / Mikulka', 'Hornbach',
+                         'IFM', 'IMI', 'IMTECHNIK', 'IVA Schmetz', 'Ipsen', 'Jumo', 'KEM', 'KNTL', 'KTR', 'Korchem',
+                         'Kottmann', 'Kovo Staněk', 'Kraintek', 'Kromschroder', 'LAC', 'Landefeld', 'Level Instruments CZ',
+                         'M. Nymburská', 'Mapro', 'Marox', 'Masarik', 'Masarik/Murat', 'Mesa', 'Microwell', 'Mikulka',
+                         'Mikulka tech', 'Milulka', 'Murat', 'Noxmat / Galtex', 'Ondráš', 'PE ', 'Pepperl+Fuchs', 'ProCav',
+                         'Process electronic', 'RD-Technologies', 'RS Components', 'Recon ', 'SEALL', 'SEW-Eurodrive', 'SMC',
+                         'SOS', 'SVX', 'Siemens', 'Slovcimi', 'Sterimob', 'Summa', 'TEM', 'TME', 'Techmat', 'Techno Service',
+                         'Torwegge', 'Universal Hydraulik', 'Verder', 'Wapka', 'Wienstroth', 'Z+M servis')
  
 
     def clear_item_frame(self):
@@ -676,40 +684,40 @@ class ItemFrameBase:
         self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
 
 
-    def additional_gui_elements(self):
+    def initialize_title(self):
         """
-        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        Vytvoření nadpisu dle typu zobrazovaných dat.
         """
-        table_config = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY", "order": 6},
-                        "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ", "order": 4},
-                        "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE", "order": 1}}
-        self.title = table_config[self.current_table]["title"]
-        self.order = table_config[self.current_table]["order"]
+        self.title = self.table_config[self.current_table]["title"]
+        self.order = self.table_config[self.current_table]["order"]
 
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
         title_label.pack(padx=2, pady=2)
         name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font,
                               text=f"{self.tab2hum[self.col_names[self.order]]}: \n {str(self.item_values[self.order])}")
-        name_label.pack(padx=2, pady=2) 
-        
+        name_label.pack(padx=2, pady=2)
+
 
     def get_selected_data(self):
         """
         Metoda pro získání dat z vybrané položky z treeview.
         """
-        self.selected_item = self.tree.selection()[0]
+        try:
+            self.selected_item = self.tree.selection()[0]
+        except Exception:
+            messagebox.showwarning("Upozornění", "Není vybrána položka k zobrazení.")
+            return
         self.item_values = self.tree.item(self.selected_item, 'values')
 
 
-    def show_selected_item_details(self, event):
+    def show_selected_item_details(self, event=None):
         """
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
         Název položky je v title_frame, zbylé informace v show_frame
         """
         self.get_selected_data()      
-
         self.clear_item_frame()        
-        self.additional_gui_elements()        
+        self.initialize_title()
           
         for index, value in enumerate(self.item_values):
             if index == self.order: continue   # Vynechá název
@@ -722,6 +730,102 @@ class ItemFrameBase:
                              relief="ridge", width=28, wraplength=195)
             label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
        
+class ItemFrameEdit(ItemFrameBase):
+    """
+    Třída ItemFrameEdit se stará o tvorbu nových a úpravu vybraných položek.
+    """
+    def __init__(self, master, tree, col_names, tab2hum, current_table, check_columns):
+        """
+        Inicializace prvků v item_frame.
+        
+        :param: Inicializovány v rodičovské třídě.
+        """
+        super().__init__(master, tree, col_names, tab2hum, current_table, check_columns)
+        self.table_config = {"sklad": {"title": "SKLADOVÁ KARTA", "order": 6},
+                             "audit_log": {"title": "POHYB NA SKLADĚ", "order": 4},
+                             "dodavatele": {"title": "DODAVATEL", "order": 1}}
+ 
+
+    def update_frames(self):
+        """
+        Vytvoření a nastavení dalších framů v show_frame pro aktuální zobrazení.
+        """
+        self.top_frame = tk.Frame(self.show_frame)
+        self.top_frame.pack(side=tk.TOP, fill=tk.X)
+       
+        self.left_frame = tk.Frame(self.top_frame, borderwidth=2)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+
+        self.right_frame = tk.Frame(self.top_frame, borderwidth=2)
+        self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+
+        self.bottom_frame = tk.Frame(self.show_frame)
+        self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
+
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
+                             command=lambda: self.check_and_save(entries, checkbutton_states, action = "edit",
+                                                                 selected_item_id=evidencni_cislo))
+        save_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.show_selected_item_details)
+        cancel_btn.pack(side=tk.LEFT, padx=5, pady=5) 
+        
+    # Metoda pro úpravu položky 
+    def open_edit_window(self):
+        
+        self.get_selected_data()      
+        self.clear_item_frame()        
+        self.initialize_title()
+        self.update_frames()
+                 
+        # Získání evidenčního čísla a hodnot z vybraného řádku
+        evidencni_cislo = self.item_values[2]  # Získání 'Evidenčního čísla' na 3. řádku
+        nazev_dilu = self.item_values[6]
+
+
+        entries = {}
+        checkbutton_states = {col: tk.BooleanVar(value=True if val == 1 else False) for col, val in zip(self.col_names, self.item_values) if col in self.check_columns}
+        for a in checkbutton_states:
+            print(checkbutton_states[a].get())
+            
+        for index, col in enumerate(self.col_names):           
+            if col in self.check_columns:
+                frame = tk.Frame(self.right_frame)
+                var = tk.BooleanVar(value=True if self.item_values and self.item_values[index] == "ANO" else False)
+                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
+                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=var,
+                                                 borderwidth=3, relief="groove", onvalue=True, offvalue=False)
+                else:
+                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=var,
+                                                 onvalue=True, offvalue=False)                
+                checkbutton.pack(side=tk.LEFT, padx=5)
+                checkbutton_states[col] = var
+                frame.pack(fill=tk.X)
+            else:
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.tab2hum[col], width=12)
+                match col:
+                    case 'Min_Mnozstvi_ks':
+                        entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
+                        if self.item_values:
+                            entry.delete(0, "end")
+                            entry.insert(0, self.item_values[index])                
+                    case 'Jednotky':
+                        entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)
+                        entry.set(self.item_values[index])                           
+                    case 'Dodavatel':
+                        entry = ttk.Combobox(frame, width=28, values=self.suppliers)
+                        entry.set(self.item_values[index])                  
+                    case _:
+                        entry = tk.Entry(frame, width=30)
+                        if self.item_values:
+                            entry.insert(0, self.item_values[index])
+                if index == 2 or index == 7:  # Pro Evidenční číslo a Množství
+                    entry.config(state='readonly')             
+                label.pack(side=tk.LEFT, pady=6)
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                entries[col] = entry
+                frame.pack(fill=tk.X)
+ 
 
 class Controller:
     """
@@ -766,65 +870,38 @@ class Controller:
                     self.current_view_instance = DodavateleView(self.root, self, col_names, data)
 
         self.current_view_instance.add_data()
+   
 
-
-##    def show_item(self, table):
-##        """
-##        Zobrazení dat z vybrané tabulky v GUI. Pokud se mění tabulka k zobrazení,
-##        vytvoří se nová instance podtřídy View, pokud zůstává tabulka
-##        stejná, pouze se aktulizují zobrazená data.
-##        
-##        :param table: Název tabulky pro zobrazení.
-##        """
-##        data = self.model.fetch_data(table)
-##        col_names = self.model.fetch_col_names(table)
-##
-##        if self.current_view_instance is None:
-##            self.current_view_instance = SkladView(self.root, self, col_names, data)
-##            self.current_table = table
-##        else:
-##            if self.current_table != table:
-##                self.current_table = table
-##                self.current_view_instance.frame.destroy()
-##                if table == "sklad":
-##                    self.current_view_instance = SkladView(self.root, self, col_names, data)
-##                elif table == "audit_log":
-##                    self.current_view_instance = AuditLogView(self.root, self, col_names, data)
-##                elif table == "dodavatele":
-##                    self.current_view_instance = DodavateleView(self.root, self, col_names, data)
-##
-##        self.current_view_instance.add_data()
-    
-
-    def export_csv(self, table, filter=None):
+    def export_csv(self, table=None, tree=None):
         """
         Export dat z vybrané tabulky v GUI.
         
         :param table: Název tabulky pro zobrazení.
         """
-        col_names = self.model.fetch_col_names(table)
-        data = self.model.fetch_data(table)
-
-        if table == 'sklad' and filter == 'nakup':
-            filtered_data =[]
-            for row in data:
-                if row[4] > row[7]:
-                    filtered_data.append(row)                
-        else:
-            filtered_data = data
-
         csv_file_name = filedialog.asksaveasfilename(defaultextension=".csv",
                                                      filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],)
         if not csv_file_name:
             return
-        
-        with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
-            csv_writer = csv.writer(csv_file)    
-            csv_writer.writerow(col_names)
-            for row in filtered_data:
-                csv_writer.writerow(row)
-                
-        tk.messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
+
+        if tree:
+            col_ids = tree["columns"]
+            col_names = [tree.heading(col)["text"] for col in col_ids]
+            data = [tree.item(item)["values"] for item in tree.get_children()]
+        else:    
+            col_names = self.model.fetch_col_names(table)
+            data = self.model.fetch_data(table)
+
+
+        try:
+            with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
+                csv_writer = csv.writer(csv_file)    
+                csv_writer.writerow(col_names)
+                for row in data:
+                    csv_writer.writerow(row)
+            messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
+        except Exception as e:
+            messagebox.showerror("Chyba při exportu", f"Nastala chyba při exportu dat: {e}")
+
 
 
 if __name__ == "__main__":
