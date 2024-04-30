@@ -104,7 +104,8 @@ class View:
         self.start_date = None
         # Nastavení vzhledu pro tag 'low_stock'
         self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
-        self.item_frame_edit = ItemFrameEdit(self.item_frame, self.tree, self.col_names, self.tab2hum, self.current_table, self.check_columns)
+        self.item_frame_edit = ItemFrameEdit(self.item_frame, self.controller, self.tree, self.col_names,
+                                             self.tab2hum, self.current_table, self.check_columns)
         # Reakce na označení položky v treeview
         self.tree.bind('<<TreeviewSelect>>', self.item_frame_edit.show_selected_item_details)   
 
@@ -279,12 +280,12 @@ class View:
 
     def filter_data(self, data, filter_low_stock):
         """
-        Vyfiltrování dat podle zadaných dat v search_entry,
-        zaškrtnutých check buttonů a low stock filtru.
-        V tabulce audit_log filtrace dle comboboxu "PŘÍJEM/VÝDEJ" a
-        v rozmezí datumů v date entry.
+        Vyfiltrování dat podle zadaných dat v search_entry ve všech tabulkách.
+        V tabulce sklad navíc dle zaškrtnutých check buttonů a low stock filtru.
+        V tabulce audit_log navíc dle comboboxu "PŘÍJEM/VÝDEJ" a v rozmezí datumů v date entry.
 
         :param data: Data pro filtraci dle search entry.
+        :param filter_low_stock: Parametr pro filtraci položek pod minimálním množstvím.
         :return: Přefiltrovaná data.
         """ 
         search_query = self.search_entry.get()
@@ -457,17 +458,17 @@ class SkladView(View):
         Implementace funkcionality pro přidání nové položky do skladu.
         """
         pass
+ 
 
     def delete_row(self):
         """
         Vymaže označenou položku, pokud je nulový stav.
-        """
-      
+        """    
         selected_item = self.tree.selection()
         if selected_item:
             mnozstvi_ks_m_l = self.tree.item(selected_item[0])['values'][7] #Množství je ve 8. sloupci
             if mnozstvi_ks_m_l != 0:
-                messagebox.showwarning("Varování", "Nelze smazat položku s nenulovým množstvím!")
+                messagebox.showwarning("Varování", "Lze smazat pouze (poslední zadanou) položku s nenulovým množstvím!") # přidat kontrolu na poslední
                 return           
             response = messagebox.askyesno("Potvrzení mazání", "Opravdu chcete smazat vybraný řádek?")
             if response: 
@@ -614,8 +615,8 @@ class DodavateleView(View):
         self.col_names = col_names
         self.current_data = data
 
-        check_columns = ()
-        hidden_columns = ()
+        self.check_columns = ()
+        self.hidden_columns = ()
         
         self.customize_ui()
        
@@ -631,7 +632,14 @@ class DodavateleView(View):
         
         :return: Slovník parametrů menu k vytvoření specifických menu.
         """
-        specialized_menus = {}
+        specialized_menus = {
+            "Skladové karty": [
+                ("Přidat položku", self.add_item),
+                ("Upravit položku", lambda: self.item_frame_edit.open_edit_window()),
+                "separator",
+                ("Smazat položku", self.delete_row),
+            ],
+        }
         return specialized_menus
 
 
@@ -650,14 +658,26 @@ class DodavateleView(View):
                     col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
                 case _:    
                     col_params.append({"width": 80, "anchor": "center"})
-        return col_params 
+        return col_params
 
+    def add_item(self):
+        """
+        Implementace funkcionality pro přidání nové položky do skladu.
+        """
+        pass
+ 
+
+    def delete_row(self):
+        """
+        Vymaže označenou položku, pokud je nulový stav.
+        """    
+        pass
 
 class ItemFrameBase:
     """
     Třída ItemFrameBase se stará o zobrazení vybraných položek.
     """
-    def __init__(self, master, tree, col_names, tab2hum, current_table, check_columns):
+    def __init__(self, master, controller, tree, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
         
@@ -668,28 +688,17 @@ class ItemFrameBase:
         :param current_table: Aktuálně otevřená tabulka databáze.
         """
         self.master = master
+        self.controller = controller
         self.tree = tree
         self.col_names = col_names
         self.tab2hum = tab2hum
         self.current_table = current_table
         self.check_columns = check_columns
+        
         self.initialize_fonts()
         self.initialize_frames()
-        self.unit_tuple = ("ks", "kg", "pár", "l", "m")
-        self.suppliers = ('','4TEK', '4tek', '4tek/HSK', 'ABO Slovakia', 'AJ Gas', 'AVT', 'AVT / Ipsen', 'AZ elektro', 'Aloquence',
-                         'Altec', 'Azvaro', 'BM Hydraulika', 'Bellgass', 'Burkert', 'Convec', 'DAC', 'DREAMland', 'Distrelec',
-                         'ELKOP Technik', 'END Armaturen', 'ETTO', 'Ecosond', 'Efteria (battery-import.sk)', 'Ekopis',
-                         'Elektro S.M.S.', 'Elgas', 'Enetex tep', 'Euautomation', 'Famiba', 'Festo', 'Filter Technik Slovakia',
-                         'First montana', 'GAFAAUTO', 'Galtex', 'Gardner Denver', 'Gasbj.sk', 'Gasotech', 'Georgia',
-                         'Georgia-čerpací technika', 'Green Tech', 'Gumex', 'HSH', 'Henkel', 'Henlich / Mikulka', 'Hornbach',
-                         'IFM', 'IMI', 'IMTECHNIK', 'IVA Schmetz', 'Ipsen', 'Jumo', 'KEM', 'KNTL', 'KTR', 'Korchem',
-                         'Kottmann', 'Kovo Staněk', 'Kraintek', 'Kromschroder', 'LAC', 'Landefeld', 'Level Instruments CZ',
-                         'M. Nymburská', 'Mapro', 'Marox', 'Masarik', 'Masarik/Murat', 'Mesa', 'Microwell', 'Mikulka',
-                         'Mikulka tech', 'Milulka', 'Murat', 'Noxmat / Galtex', 'Ondráš', 'PE ', 'Pepperl+Fuchs', 'ProCav',
-                         'Process electronic', 'RD-Technologies', 'RS Components', 'Recon ', 'SEALL', 'SEW-Eurodrive', 'SMC',
-                         'SOS', 'SVX', 'Siemens', 'Slovcimi', 'Sterimob', 'Summa', 'TEM', 'TME', 'Techmat', 'Techno Service',
-                         'Torwegge', 'Universal Hydraulik', 'Verder', 'Wapka', 'Wienstroth', 'Z+M servis')
- 
+        self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
+
 
     def clear_item_frame(self):
         """
@@ -741,7 +750,7 @@ class ItemFrameBase:
         try:
             self.selected_item = self.tree.selection()[0]
         except Exception:
-            messagebox.showwarning("Upozornění", "Není vybrána položka k zobrazení.")
+            messagebox.showwarning("Upozornění", "Žádná položka k zobrazení.")
             return
         self.item_values = self.tree.item(self.selected_item, 'values')
 
@@ -772,16 +781,16 @@ class ItemFrameEdit(ItemFrameBase):
     """
     Třída ItemFrameEdit se stará o tvorbu nových a úpravu vybraných položek.
     """
-    def __init__(self, master, tree, col_names, tab2hum, current_table, check_columns):
+    def __init__(self, master, controller, tree, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, tree, col_names, tab2hum, current_table, check_columns)
-        self.table_config = {"sklad": {"title": "SKLADOVÁ KARTA", "order": 6},
+        super().__init__(master, controller, tree, col_names, tab2hum, current_table, check_columns)
+        self.table_config = {"sklad": {"title": "SKLADOVÁ KARTA", "order": 6, "id": 2},
                              "audit_log": {"title": "POHYB NA SKLADĚ", "order": 4},
-                             "dodavatele": {"title": "DODAVATEL", "order": 1}}
+                             "dodavatele": {"title": "DODAVATEL", "order": 1, "id": 0}}
  
 
     def update_frames(self):
@@ -801,43 +810,37 @@ class ItemFrameEdit(ItemFrameBase):
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
 
         save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
-                             command=lambda: self.check_and_save(entries, checkbutton_states, action = "edit",
-                                                                 selected_item_id=evidencni_cislo))
+                             command=lambda: self.check_and_save(self.entries, self.checkbutton_states, action = "edit",
+                                                                 selected_item_id=self.id))
         save_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.show_selected_item_details)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5) 
+
         
     # Metoda pro úpravu položky 
     def open_edit_window(self):
-        
-        self.get_selected_data()      
+        """
+        Metoda pro úpravu vybrané položky z Treeview.
+        """
+        self.suppliers = self.controller.fetch_suppliers()
+        self.get_selected_data()      # Předělat na získání dat z controlleru
         self.clear_item_frame()        
         self.initialize_title()
         self.update_frames()
                  
-        # Získání evidenčního čísla a hodnot z vybraného řádku
-        evidencni_cislo = self.item_values[2]  # Získání 'Evidenčního čísla' na 3. řádku
-        nazev_dilu = self.item_values[6]
-
-
-        entries = {}
-        checkbutton_states = {col: tk.BooleanVar(value=True if val == 1 else False) for col, val in zip(self.col_names, self.item_values) if col in self.check_columns}
-        for a in checkbutton_states:
-            print(checkbutton_states[a].get())
+        self.id = self.item_values[self.table_config[self.current_table]["id"]]
+        self.checkbutton_states = {}
+        self.entries = {}
             
         for index, col in enumerate(self.col_names):           
             if col in self.check_columns:
                 frame = tk.Frame(self.right_frame)
-                var = tk.BooleanVar(value=True if self.item_values and self.item_values[index] == "ANO" else False)
+                is_checked = self.item_values[index] == "ANO"
+                self.checkbutton_states[col] = tk.BooleanVar(value=is_checked)
+                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
                 if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=var,
-                                                 borderwidth=3, relief="groove", onvalue=True, offvalue=False)
-                else:
-                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=var,
-                                                 onvalue=True, offvalue=False)                
+                    checkbutton.config(borderwidth=3, relief="groove")
                 checkbutton.pack(side=tk.LEFT, padx=5)
-                checkbutton_states[col] = var
-                frame.pack(fill=tk.X)
             else:
                 frame = tk.Frame(self.left_frame)
                 label = tk.Label(frame, text=self.tab2hum[col], width=12)
@@ -857,13 +860,14 @@ class ItemFrameEdit(ItemFrameBase):
                         entry = tk.Entry(frame, width=30)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])
-                if index == 2 or index == 7:  # Pro Evidenční číslo a Množství
+                if ((self.current_table=='sklad' and index==2 or index==7) # pro Evid. č. a Množství pro sklad
+                    or (self.current_table=='dodavatele' and index==0)):  # pro id pro dodavatele
                     entry.config(state='readonly')             
                 label.pack(side=tk.LEFT, pady=6)
                 entry.pack(side=tk.RIGHT, padx=2, pady=6)
-                entries[col] = entry
-                frame.pack(fill=tk.X)
- 
+                self.entries[col] = entry
+            frame.pack(fill=tk.X)
+
 
 class Controller:
     """
@@ -881,10 +885,22 @@ class Controller:
         self.model = Model(db_path)
         self.current_view_instance = None
 
+    def fetch_suppliers(self):
+        """
+        Získání seznamu dodavatelů z tabulky 'dodavatele'.
+        
+        :return N-tice seřazených dodavatelů.
+        """
+        data = self.model.fetch_data('dodavatele')
+        suppliers = []
+        for row in data:
+            suppliers.append(row[1])
+        return tuple(sorted(suppliers))
+            
 
     def show_data(self, table):
         """
-        Zobrazení dat z vybrané tabulky v GUI. Pokud se mění tabulka k zobrazení,
+        Získání a zobrazení dat z vybrané tabulky v GUI. Pokud se mění tabulka k zobrazení,
         vytvoří se nová instance podtřídy View, pokud zůstává tabulka
         stejná, pouze se aktulizují zobrazená data.
         
@@ -908,7 +924,27 @@ class Controller:
                     self.current_view_instance = DodavateleView(self.root, self, col_names, data)
 
         self.current_view_instance.add_data()
-   
+
+
+    def show_item(self, table, id_num):
+        """
+        Získání a zobrazení vybrané položky pro úpravu. Pokud se mění tabulka k zobrazení,
+        vytvoří se nová instance podtřídy ItemFrameBase, pokud zůstává tabulka stejná,
+        pouze se aktulizují zobrazená data.
+        
+        :param table: Název tabulky pro zobrazení.
+        :param id_num: Identifikační číslo položky pro zobrazení.
+        """
+        data = self.model.fetch_data(table)
+        col_names = self.model.fetch_col_names(table)
+        
+##        if table == "sklad":
+##            self.current_item_instance = SkladView(self.root, self, col_names, data)
+##        elif table == "dodavatele":
+##            self.current_item_instance = DodavateleView(self.root, self, col_names, data)
+##
+##        self.current_item_instance.open_edit_window()
+
 
     def export_csv(self, table=None, tree=None):
         """
