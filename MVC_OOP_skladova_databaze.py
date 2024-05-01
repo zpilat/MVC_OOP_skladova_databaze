@@ -823,12 +823,20 @@ class ItemFrameBase:
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.current_view_instance.show_selected_item)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
+    def update_table_config(self):
+        """
+        Doplní specifické názvy činnosti pro danou tabulku - název činnosti v title_item.
+        """
+        for item in self.title:
+            if item in self.table_config:
+                self.table_config[item]["title"] = self.title[item]
+
 
     def initialize_title(self):
         """
         Vytvoření nadpisu dle typu zobrazovaných dat.
         """
-        self.title = self.title_dict[self.current_table]
+        self.title = self.table_config[self.current_table]["title"]
         self.order = self.table_config[self.current_table]["order"]
 
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
@@ -849,8 +857,9 @@ class ItemFrameShow(ItemFrameBase):
         :param: Inicializovány v rodičovské třídě.
         """
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "ZOBRAZENÍ SKLADOVÉ KARTY", "audit_log": "ZOBRAZENÍ POHYBU NA SKLADĚ",
-                           "dodavatele": "ZOBRAZENÍ DODAVATELE"}
+        self.title = {"sklad": "ZOBRAZENÍ SKLADOVÉ KARTY", "audit_log": "ZOBRAZENÍ POHYBU NA SKLADĚ",
+                      "dodavatele": "ZOBRAZENÍ DODAVATELE"}
+        self.update_table_config()
 
 
     def clear_item_frame(self):
@@ -896,14 +905,13 @@ class ItemFrameEdit(ItemFrameBase):
         """
         self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
+        self.title = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
+        self.update_table_config()
 
        
     def open_edit_window(self, item_values):
         """
         Metoda pro úpravu vybrané položky z Treeview.
-
-        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
         """
         self.item_values = item_values    
         self.initialize_title()
@@ -933,7 +941,7 @@ class ItemFrameEdit(ItemFrameBase):
                     case 'Jednotky':
                         entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)
                         entry.set(self.item_values[index])                           
-                    case 'Dodavatel' if self.current_table=='sklad':
+                    case 'Dodavatel':
                         entry = ttk.Combobox(frame, width=28, values=self.suppliers)
                         entry.set(self.item_values[index])                  
                     case _:
@@ -941,7 +949,7 @@ class ItemFrameEdit(ItemFrameBase):
                         if self.item_values:
                             entry.insert(0, self.item_values[index])
                 if ((self.current_table=='sklad' and index==2 or index==7) # Pouze ke čtení pro Evid. č. a Množství pro sklad
-                    or (self.current_table=='dodavatele' and index==0 or index==1)):  # pro id a jména dodavatele pro dodavatele
+                    or (self.current_table=='dodavatele' and index==0)):  # pro id pro dodavatele
                     entry.config(state='readonly')             
                 label.pack(side=tk.LEFT, pady=6)
                 entry.pack(side=tk.RIGHT, padx=2, pady=6)
@@ -960,69 +968,68 @@ class ItemFrameAdd(ItemFrameBase):
         :param: Inicializovány v rodičovské třídě.
         """
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "VYTVOŘENÍ  SKLADOVÉ KARTY", "dodavatele": "VYTVOŘENÍ DODAVATELE"}
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Datum_nakupu',
-                                                   'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky'),
-                                     }
-                           "dodavatele": {"read_only": ('id',)
-                                          }
-                           }
+        self.title = {"sklad": "VYTVOŘENÍ  SKLADOVÉ KARTY", "dodavatele": "VYTVOŘENÍ DODAVATELE"}
+        self.update_table_config()
  
-
+      # Metoda pro vytvoření nové položky
     def add_item(self):
-        """
-        Metoda pro přidání nové položky do aktuální tabulky.
-        """
-        self.entries = {}
-        self.checkbutton_states = {}
-        self.initialize_title()
+
+        entries = {}
+        checkbutton_states = {}
         self.update_frames(action='add')
-        self.new_id = self.controller.get_max_id(self.current_table, self.table_config[self.current_table]["id_col"]) + 1
-        aktualni_datum = datetime.now().strftime("%Y-%m-%d")
+
+        # Získání nového evidenčního a pořadového čísla = maximum Evidencne_cislo + 1, maximum Interne_cislo + 1
+        new_evidencni_cislo = self.db.get_max_evidencni_cislo() + 1
+        new_interne_cislo = self.db.get_max_interne_cislo() + 1
+
+        # Vytvoření framů pro zobrazení položky
+        self.create_frame("Vytvoření nové položky")
         
-        for index, col in enumerate(self.col_names):
+        # Zobrazení formuláře po zadání nových dat
+        for index, col in enumerate(self.columns):
             if col in self.check_columns:
                 frame = tk.Frame(self.right_frame)
-                self.checkbutton_states[col] = tk.BooleanVar(value=True) if col == 'Ucetnictvi' else tk.BooleanVar(value=False)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.pack(side=tk.LEFT, padx=5)
-
-            else:
-                if self.current_table=='sklad':
-                    self.new_interne_cislo = self.controller.get_max_interne_cislo() + 1
-
-
-                elif self.current_tabel=='dodavatele':
-                    
-
-                    
-                elif col == 'Min_Mnozstvi_ks':
-                    frame = tk.Frame(self.left_frame)
-                    label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
-                    label.pack(side=tk.LEFT, pady=6)
-                    entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
-                elif col == 'Jednotky':
-                    frame = tk.Frame(self.left_frame)
-                    label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
-                    label.pack(side=tk.LEFT, pady=6)
-                    entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)             
-                    entry.set(self.unit_tuple[0])
-                elif col == 'Dodavatel':
-                    frame = tk.Frame(self.left_frame)
-                    label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
-                    label.pack(side=tk.LEFT, pady=6)
-                    entry = ttk.Combobox(frame, width=28, values=self.suppliers)             
-                    entry.set(self.suppliers[0])
+                if col == 'Ucetnictvi':
+                    var = tk.BooleanVar(value=True)  # True pro Účetnictví
                 else:
-                    frame = tk.Frame(self.left_frame)
-                    label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
+                    var = tk.BooleanVar(value=False)  # False pro ostatní checkbuttony                  
+                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
+                    checkbutton = tk.Checkbutton(frame, text=self.dict_col2humancol[col], variable=var,
+                                                 borderwidth=3, relief="groove")
+                else:
+                    checkbutton = tk.Checkbutton(frame, text=self.dict_col2humancol[col], variable=var)
+                checkbutton.pack(side=tk.LEFT, padx=5)
+                checkbutton_states[col] = var
+            elif col == 'Min_Mnozstvi_ks':
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
                 label.pack(side=tk.LEFT, pady=6)
+                entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
                 entry.pack(side=tk.RIGHT, padx=2, pady=6)
-                self.entries[col] = entry
-
-                
+                entries[col] = entry
+            elif col == 'Jednotky':
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
+                label.pack(side=tk.LEFT, pady=6)
+                entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)             
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                entry.set(self.unit_tuple[0])
+                entries[col] = entry
+            elif col == 'Dodavatel':
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
+                label.pack(side=tk.LEFT, pady=6)
+                entry = ttk.Combobox(frame, width=28, values=self.suppliers)             
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                entry.set(self.suppliers[0])
+                entries[col] = entry  
+            else:
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.dict_col2humancol[col], width=12)
+                label.pack(side=tk.LEFT, pady=6)
+                entry = tk.Entry(frame, width=30)
+                # Získání aktuálního data ve formátu YYYY-MM-DD
+                aktualni_datum = datetime.now().strftime("%Y-%m-%d")
                 # Logika pro vložení a konfiguraci entry widgetů              
                 match col:
                     case 'Evidencni_cislo':
@@ -1032,18 +1039,21 @@ class ItemFrameAdd(ItemFrameBase):
                         entry.config(background='yellow')                        
                     case 'Interne_cislo':
                         entry.insert(0, str(new_interne_cislo))
-                        entry.config(state='readonly')  
+                        entry.config(state='readonly')  # Zamezení úprav
                     case 'Mnozstvi_ks_m_l':
                         entry.insert(0, '0')
-                        entry.config(state='readonly')  
+                        entry.config(state='readonly')  # Zamezení úprav
                     case 'Datum_nakupu':
                         entry.insert(0, aktualni_datum)
-                        entry.config(state='readonly')                        
+                        entry.config(state='readonly')  # Zamezení úprav                       
                     case 'Jednotkova_cena_EUR' | 'Celkova_cena_EUR':
                         entry.insert(0, '0.0')
-                        entry.config(state='readonly')  
+                        entry.config(state='readonly')  # Zamezení úprav
                     case 'Objednano' | 'Cislo_objednavky':
-                        entry.config(state='readonly')                      
+                        entry.config(state='readonly')  # Zamezení úprav
+                        
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                entries[col] = entry
             frame.pack(fill=tk.X)
 
 class Controller:
