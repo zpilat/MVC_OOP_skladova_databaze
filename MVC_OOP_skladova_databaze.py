@@ -925,7 +925,6 @@ class ItemFrameEdit(ItemFrameBase):
         self.entries = {}
         self.init_curr_entry_dict()
 
-
         for index, col in enumerate(self.col_names):           
             if col in self.check_columns:
                 frame = tk.Frame(self.right_frame)
@@ -1034,6 +1033,81 @@ class ItemFrameAdd(ItemFrameBase):
                 if col in self.curr_entry_dict["insert"]: entry.insert(0, self.curr_entry_dict["insert"][col]) 
                 if col in self.curr_entry_dict["read_only"]: entry.config(state='readonly') 
             frame.pack(fill=tk.X)
+
+
+class ItemFrameMovements(ItemFrameBase):
+    """
+    Třída ItemFrameMovements se stará o příjem a výdej ve skladě.
+    """
+    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns, current_view_instance):
+        """
+        Inicializace prvků v item_frame.
+        
+        :param: Inicializovány v rodičovské třídě.
+        """
+        self.current_view_instance = current_view_instance
+        super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        self.title_dict = {"sklad": "PŘÍJEM / VÝDEJ SKLADOVÉ POLOŽKY"}
+
+       
+    def init_curr_entry_dict(self):
+        """
+        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
+        """        
+        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l')},                                 
+                           "dodavatele": {"read_only": ('id', 'Dodavatel')}}
+        self.curr_entry_dict = self.entry_dict[self.current_table]
+
+
+    def open_edit_window(self, item_values):
+        """
+        Metoda pro úpravu vybrané položky z Treeview.
+
+        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+        """
+        self.item_values = item_values    
+        self.initialize_title()
+        self.update_frames(action='edit')                
+        self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        self.checkbutton_states = {}
+        self.entries = {}
+        self.init_curr_entry_dict()
+
+        for index, col in enumerate(self.col_names):           
+            if col in self.check_columns:
+                frame = tk.Frame(self.right_frame)
+                is_checked = self.item_values[index] == 1
+                self.checkbutton_states[col] = tk.BooleanVar(value=is_checked)
+                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
+                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
+                    checkbutton.config(borderwidth=3, relief="groove")
+                checkbutton.pack(side=tk.LEFT, padx=5)
+            else:
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.tab2hum[col], width=12)
+                match col:
+                    case 'Min_Mnozstvi_ks':
+                        entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
+                        if self.item_values:
+                            entry.delete(0, "end")
+                            entry.insert(0, self.item_values[index])                
+                    case 'Jednotky':
+                        entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)
+                        entry.set(self.item_values[index])                           
+                    case 'Dodavatel' if self.current_table=='sklad':
+                        entry = ttk.Combobox(frame, width=28, values=self.suppliers)
+                        entry.set(self.item_values[index])                  
+                    case _:
+                        entry = tk.Entry(frame, width=30)
+                        if self.item_values:
+                            entry.insert(0, self.item_values[index])           
+                label.pack(side=tk.LEFT, pady=6)
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                self.entries[col] = entry
+                if col in self.curr_entry_dict["read_only"]:
+                    entry.config(state='readonly') 
+            frame.pack(fill=tk.X)
+
 
 class Controller:
     """
