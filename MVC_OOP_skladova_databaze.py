@@ -133,8 +133,8 @@ class View:
                         'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu', 'Cislo_objednavky': 'Objednávka',
                         'Jednotkova_cena_EUR': 'Cena EUR/ks', 'Celkova_cena_EUR': 'Celkem EUR',
                         'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
-                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
-                        'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID'}
+                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
+                        'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID', 'Kontakt': 'Kontaktní osoba'}
 
         
     def customize_ui(self):
@@ -832,7 +832,7 @@ class ItemFrameBase:
         self.bottom_frame = tk.Frame(self.show_frame)
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
 
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=lambda: self.check_and_save(action = action))
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=lambda: self.check_before_save(action = action))
         save_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.current_view_instance.show_selected_item)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -1077,9 +1077,9 @@ class ItemFrameMovements(ItemFrameBase):
                                      }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
-        self.pack_forget_dict = {"prijem": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni', 'Datum_vydeje'),
-                                 "vydej": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel',
-                                           'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu')}
+        self.grid_forget_dict = {"prijem": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni', 'Datum_vydeje', 'id'),
+                                 "vydej": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 
+                                           'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id')}
         self.not_insert_dict = {"prijem": 'Datum_vydeje', "vydej": 'Datum_nakupu'}
         self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II',
                         'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', "Ostatní")
@@ -1099,7 +1099,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.title = "PŘÍJEM" if self.action == "prijem" else "VÝDEJ"
         self.title_dict = {"sklad": f"{self.title} ZBOŽÍ"}
         self.initialize_title()
-        self.update_frames(action=self.action)  # Změnit metodu check_form na podtřídní metodu check_and_save!!!           
+        self.update_frames(action=self.action)  # Změnit metodu check_form na podtřídní metodu check_before_save!!!           
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
         self.entries_al = {}
         self.actual_quantity = self.item_values[self.curr_table_config["quantity_col"]]
@@ -1114,31 +1114,29 @@ class ItemFrameMovements(ItemFrameBase):
             return
         
         for idx, col in enumerate(self.audit_log_col_names):
-            row_num = idx // 2
+            if col in self.col_names:
+                index = self.col_names.index(col) 
             label = tk.Label(self.left_frame, text=self.tab2hum[col], width=12)
-            label.grid(row=row_num, column=0, sticky="nsew", padx=5, pady=2)
-            index = self.col_names.index(col)
-            print(index)
-            print(self.item_values[index])
+            label.grid(row=idx, column=0, sticky="nsew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
                 entry_al = ttk.Combobox(self.left_frame, width=26, values=self.devices)             
                 entry_al.set("")
-                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
+                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             elif col == 'Dodavatel':
                 entry_al = ttk.Combobox(self.left_frame, width=26, values=self.suppliers)
                 entry_al.set(self.item_values[index])
-                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
+                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             else:
                 entry_al = tk.Entry(self.left_frame, width=28)                        
-                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
+                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             if col == 'Zmena_mnozstvi': entry_al.config(background='yellow')
-            if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')
-            if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])
+            if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])        
             if col in self.curr_entry_dict["actual_value"]: entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
-            if col in self.pack_forget_dict:
+            if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')                
+            if col in self.grid_forget_dict[self.action]:
                 label.grid_forget()
                 entry_al.grid_forget()
-            self.entries_al[col] = entry_al                
+            self.entries_al[col] = entry_al
 
 
 class Controller:
