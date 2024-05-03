@@ -130,10 +130,9 @@ class View:
                         'LAC_I': 'LAC I', 'LAC_II': 'LAC II', 'IPSEN_ENE': 'IPSEN ENE', 'HSH_ENE': 'HSH ENE',
                         'XL_ENE1': 'XL ENE1', 'XL_ENE2': 'XL ENE2', 'IPSEN_W': 'IPSEN W', 'HSH_W': 'HSH W',
                         'KW': 'KW', 'KW1': 'KW1', 'KW2': 'KW2', 'KW3': 'KW3', 'Umisteni': 'Umístění',
-                        'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu',
-                        'Cislo_objednavky': 'Objednávka', 'Jednotkova_cena_EUR': 'Cena EUR/ks',
-                        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka',
-                        'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
+                        'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu', 'Cislo_objednavky': 'Objednávka',
+                        'Jednotkova_cena_EUR': 'Cena EUR/ks', 'Celkova_cena_EUR': 'Celkem EUR',
+                        'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
                         'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
                         'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID'}
 
@@ -517,8 +516,8 @@ class SkladView(View):
                 ("Smazat skladovou položku", self.delete_row),
             ],
             "Příjem/Výdej": [
-                ("Příjem zboží", lambda: self.prijem_vydej_zbozi(action='prijem')),
-                ("Výdej zboží", lambda: self.prijem_vydej_zbozi(action='vydej')), 
+                ("Příjem zboží", lambda: self.item_movements(action='prijem')),
+                ("Výdej zboží", lambda: self.item_movements(action='vydej')), 
             ],
             "Nákup": [
                 ("Položky pod minimem", lambda: self.add_data(filter_low_stock=True)),
@@ -573,11 +572,23 @@ class SkladView(View):
         self.controller.show_data(self.current_table)
         
 
-    def prijem_vydej_zbozi(self, action):
+    def item_movements(self, action):
         """
         Implementace funkcionality pro příjem a výdej zboží ve skladu.
         """
-        pass
+        try:
+            self.selected_item = self.tree.selection()[0]
+        except Exception:
+            messagebox.showwarning("Upozornění", "Nebyla vybrána žádná položka pro pohyb zboží na skladě.")
+            return
+
+        for widget in self.item_frame.winfo_children():
+            widget.destroy()
+            
+        self.item_frame_show = None
+        self.id_num = self.tree.item(self.selected_item, 'values')[self.id_col]
+        self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
+                                              self.item_frame, self.tab2hum, self.check_columns, action)
 
     
 class AuditLogView(View):
@@ -759,6 +770,10 @@ class ItemFrameBase:
     """
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
+    table_config = {"sklad": {"order_of_name": 6, "id_col": 2, "id_col_name": "Evidencni_cislo",
+                              "quantity_col": 7, "unit_price_col": 33},
+                    "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id"},
+                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id"}}
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
@@ -775,15 +790,12 @@ class ItemFrameBase:
         self.tab2hum = tab2hum
         self.current_table = current_table
         self.check_columns = check_columns
-        self.suppliers = self.controller.fetch_suppliers()
-       
+        self.suppliers = self.controller.fetch_suppliers()    
         self.initialize_fonts()
         self.initialize_frames()
+        self.logged_user = "Janarčin"
         self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
-        self.table_config = {"sklad": {"order_of_name": 6, "id_col": 2, "id_col_name": "Evidencni_cislo"},
-                             "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id"},
-                             "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id"}}
-        self.curr_table_config = self.table_config[self.current_table]
+        self.curr_table_config = ItemFrameBase.table_config[self.current_table]
 
 
     def initialize_fonts(self):
@@ -944,10 +956,10 @@ class ItemFrameEdit(ItemFrameBase):
                             entry.delete(0, "end")
                             entry.insert(0, self.item_values[index])                
                     case 'Jednotky':
-                        entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)
+                        entry = ttk.Combobox(frame, width=27, values=self.unit_tuple)
                         entry.set(self.item_values[index])                           
                     case 'Dodavatel' if self.current_table=='sklad':
-                        entry = ttk.Combobox(frame, width=28, values=self.suppliers)
+                        entry = ttk.Combobox(frame, width=27, values=self.suppliers)
                         entry.set(self.item_values[index])                  
                     case _:
                         entry = tk.Entry(frame, width=30)
@@ -1019,10 +1031,10 @@ class ItemFrameAdd(ItemFrameBase):
                     case 'Min_Mnozstvi_ks' if self.current_table=="sklad":
                         entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
                     case 'Jednotky' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)             
+                        entry = ttk.Combobox(frame, width=27, values=self.unit_tuple)             
                         entry.set(self.unit_tuple[0])
                     case 'Dodavatel' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=28, values=self.suppliers)             
+                        entry = ttk.Combobox(frame, width=27, values=self.suppliers)             
                         entry.set("")
                     case _:
                         entry = tk.Entry(frame, width=30)            
@@ -1047,66 +1059,86 @@ class ItemFrameMovements(ItemFrameBase):
         """
         self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "PŘÍJEM / VÝDEJ SKLADOVÉ POLOŽKY"}
 
        
     def init_curr_entry_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l')},                                 
-                           "dodavatele": {"read_only": ('id', 'Dodavatel')}}
+        self.entry_dict = {"sklad": {"read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Cas_operace','Operaci_provedl'),
+                                     "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+                                                           'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano'
+                                                           'Poznamka', 'Nazev_dilu'),
+                                     "actual_value": {'Typ_operace': self.title, 'Cas_operace': self.actual_date_time,
+                                                      'Operaci_provedl': self.logged_user,
+                                                      'Datum_nakupu': self.actual_date if self.action=='prijem' else "",
+                                                      'Datum_vydeje': self.actual_date if self.action=='vydej' else ""}
+                                     }
+                           }
         self.curr_entry_dict = self.entry_dict[self.current_table]
+        self.pack_forget_dict = {"prijem": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni', 'Datum_vydeje'),
+                                 "vydej": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel',
+                                           'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu')}
+        self.not_insert_dict = {"prijem": 'Datum_vydeje', "vydej": 'Datum_nakupu'}
+        self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II',
+                        'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', "Ostatní")
 
+      
 
-    def open_edit_window(self, item_values):
+    def enter_item_movements(self, action, item_values, audit_log_col_names):
         """
-        Metoda pro úpravu vybrané položky z Treeview.
+        Metoda pro příjem a výdej skladových položek.
 
+        :params action: Parametr s názvem akce příjem nebo výdej zboží - "prijem", "vydej".
         :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
         """
-        self.item_values = item_values    
+        self.action = action
+        self.item_values = item_values
+        self.audit_log_col_names = audit_log_col_names
+        self.title = "PŘÍJEM" if self.action == "prijem" else "VÝDEJ"
+        self.title_dict = {"sklad": f"{self.title} ZBOŽÍ"}
         self.initialize_title()
-        self.update_frames(action='edit')                
+        self.update_frames(action=self.action)  # Změnit metodu check_form na podtřídní metodu check_and_save!!!           
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
-        self.checkbutton_states = {}
-        self.entries = {}
+        self.entries_al = {}
+        self.actual_quantity = self.item_values[self.curr_table_config["quantity_col"]]
+        self.actual_unit_price = self.item_values[self.curr_table_config["unit_price_col"]]
+        self.actual_date = datetime.now().strftime("%Y-%m-%d")
+        self.actual_date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.init_curr_entry_dict()
-
-        for index, col in enumerate(self.col_names):           
-            if col in self.check_columns:
-                frame = tk.Frame(self.right_frame)
-                is_checked = self.item_values[index] == 1
-                self.checkbutton_states[col] = tk.BooleanVar(value=is_checked)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.pack(side=tk.LEFT, padx=5)
+       
+        if self.action=='vydej' and self.actual_quantity==0:
+            messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
+            self.current_view_instance.show_selected_item
+            return
+        
+        for idx, col in enumerate(self.audit_log_col_names):
+            row_num = idx // 2
+            label = tk.Label(self.left_frame, text=self.tab2hum[col], width=12)
+            label.grid(row=row_num, column=0, sticky="nsew", padx=5, pady=2)
+            index = self.col_names.index(col)
+            print(index)
+            print(self.item_values[index])
+            if col == 'Pouzite_zarizeni':
+                entry_al = ttk.Combobox(self.left_frame, width=26, values=self.devices)             
+                entry_al.set("")
+                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
+            elif col == 'Dodavatel':
+                entry_al = ttk.Combobox(self.left_frame, width=26, values=self.suppliers)
+                entry_al.set(self.item_values[index])
+                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
             else:
-                frame = tk.Frame(self.left_frame)
-                label = tk.Label(frame, text=self.tab2hum[col], width=12)
-                match col:
-                    case 'Min_Mnozstvi_ks':
-                        entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
-                        if self.item_values:
-                            entry.delete(0, "end")
-                            entry.insert(0, self.item_values[index])                
-                    case 'Jednotky':
-                        entry = ttk.Combobox(frame, width=28, values=self.unit_tuple)
-                        entry.set(self.item_values[index])                           
-                    case 'Dodavatel' if self.current_table=='sklad':
-                        entry = ttk.Combobox(frame, width=28, values=self.suppliers)
-                        entry.set(self.item_values[index])                  
-                    case _:
-                        entry = tk.Entry(frame, width=30)
-                        if self.item_values:
-                            entry.insert(0, self.item_values[index])           
-                label.pack(side=tk.LEFT, pady=6)
-                entry.pack(side=tk.RIGHT, padx=2, pady=6)
-                self.entries[col] = entry
-                if col in self.curr_entry_dict["read_only"]:
-                    entry.config(state='readonly') 
-            frame.pack(fill=tk.X)
+                entry_al = tk.Entry(self.left_frame, width=28)                        
+                entry_al.grid(row=row_num, column=1, sticky="nsew", padx=5, pady=2)
+            if col == 'Zmena_mnozstvi': entry_al.config(background='yellow')
+            if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')
+            if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])
+            if col in self.curr_entry_dict["actual_value"]: entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
+            if col in self.pack_forget_dict:
+                label.grid_forget()
+                entry_al.grid_forget()
+            self.entries_al[col] = entry_al                
 
 
 class Controller:
@@ -1169,9 +1201,7 @@ class Controller:
 
     def show_data_for_editing(self, table, id_num, id_col_name, master, tab2hum, check_columns):
         """
-        Získání dat a zobrazení vybrané položky pro úpravu. Pokud se mění tabulka k zobrazení,
-        vytvoří se nová instance podtřídy ItemFrameBase, pokud zůstává tabulka stejná,
-        pouze se aktulizují zobrazená data.
+        Získání dat a zobrazení vybrané položky pro úpravu. Vytvoří se nová instance ItemFrameEdit.
         
         :param table: Název tabulky pro zobrazení.
         :param id_num: Identifikační číslo položky pro zobrazení.
@@ -1181,6 +1211,21 @@ class Controller:
 
         self.current_item_instance = ItemFrameEdit(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
         self.current_item_instance.open_edit_window(item_values)
+
+
+    def show_data_for_movements(self, table, id_num, id_col_name, master, tab2hum, check_columns, action):
+        """
+        Získání dat a zobrazení vybrané položky pro skladový pohyb. Vytvoří se nová instance ItemFrameMovements.
+        
+        :param table: Název tabulky pro zobrazení.
+        :param id_num: Identifikační číslo položky pro zobrazení.
+        """
+        item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
+        col_names = self.model.fetch_col_names(table)
+        audit_log_col_names = self.model.fetch_col_names("audit_log")
+
+        self.current_item_instance = ItemFrameMovements(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
+        self.current_item_instance.enter_item_movements(action, item_values, audit_log_col_names)
 
 
     def add_item(self, table, id_num, id_col_name, master, tab2hum, check_columns):
