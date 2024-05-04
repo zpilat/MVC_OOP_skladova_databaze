@@ -3,7 +3,6 @@ import csv
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkFont
-from tkcalendar import DateEntry
 from datetime import datetime, timedelta
 
 import os
@@ -644,34 +643,55 @@ class AuditLogView(View):
         self.operation_combobox.set("PŘÍJEM/VÝDEJ")
         self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)
 
-        today = datetime.now()
-        first_day_of_month = today.replace(day=1)
-        last_day_of_month = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        self.month_entry_label = tk.Label(self.search_frame, text="Výběr měsíce:")
+        self.month_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.start_date_entry_label = tk.Label(self.search_frame, text="Počáteční datum:")
-        self.start_date_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.start_date_entry = DateEntry(self.search_frame, width=12, background='darkblue', foreground='white',
-                                          borderwidth=2, year=first_day_of_month.year,
-                                          month=first_day_of_month.month, day=first_day_of_month.day)
-        self.start_date_entry.pack(side=tk.LEFT, padx=5, pady=5)
-
-        self.end_date_entry_label = tk.Label(self.search_frame, text="Koncové datum:")
-        self.end_date_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
-        self.end_date_entry = DateEntry(self.search_frame, width=12, background='darkblue', foreground='white',
-                                        borderwidth=2, year=last_day_of_month.year,
-                                        month=last_day_of_month.month, day=last_day_of_month.day)
-        self.end_date_entry.pack(side=tk.LEFT, padx=5, pady=5)
+        self.generate_months_list()
+        self.month_entry_combobox = ttk.Combobox(self.search_frame, width=12, values=["Neomezeně"]+self.months_list)
+        self.month_entry_combobox.pack(side=tk.LEFT, padx=5, pady=5)
+        self.month_entry_combobox.set("Neomezeně")
 
         choice_btn = tk.Button(self.search_frame, text="Vyfiltrovat období", command=self.filter_date)
         choice_btn.pack(side=tk.LEFT, padx=5, pady=5)
+
+
+    def generate_months_list(self):
+        """
+        Generuje seznam měsíců od ledna 2024 do aktuálního měsíce a roku ve formátu MM-YYYY.
+        Výsledkem je seznam řetězců, kde každý řetězec reprezentuje jeden měsíc v požadovaném formátu.
+        Aktuální měsíc a rok je vypočítán z aktuálního systémového času a je také zahrnut ve výsledném seznamu.
+        Seznam je vhodný pro použití v uživatelském rozhraní jako hodnoty pro výběrový seznam (např. Combobox),
+        umožňující uživateli vybrat specifický měsíc a rok.
+        """
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        self.months_list = []
+
+        for year in range(2024, current_year + 1):
+            for month in range(1, 13):
+                if year == current_year and month > current_month:
+                    break
+                self.months_list.append(f"{month:02d}-{year}")
 
 
     def filter_date(self):
         """
         Filtrování zobrazovaných dat v rozsahu počátečního a koncového datumu.
         """
-        self.start_date = datetime.strptime(self.start_date_entry.get(), '%d.%m.%y').strftime('%Y-%m-%d')
-        self.end_date = datetime.strptime(self.end_date_entry.get(), '%d.%m.%y').strftime('%Y-%m-%d')
+        selected_month_year = self.month_entry_combobox.get()
+        if selected_month_year == "Neomezeně":
+            self.start_date=None
+            self.end_date=None
+        else:
+            start_date = datetime.strptime(f"01-{selected_month_year}", "%d-%m-%Y")
+            self.start_date = start_date.strftime('%Y-%m-%d')
+            month, year = map(int, selected_month_year.split("-"))
+            if month == 12:
+                end_date = datetime(year, month, 31)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            self.end_date = end_date.strftime('%Y-%m-%d')
+
         self.controller.show_data(self.current_table)
 
 
