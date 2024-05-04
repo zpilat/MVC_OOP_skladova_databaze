@@ -85,6 +85,39 @@ class Model:
         return max_value if max_value is not None else 0
 
 
+    def insert_item(self, table, columns, values):
+        """
+        Vloží novou položku do specifikované tabulky v databázi.
+
+        :param table: Název tabulky, do které se má položka vložit.
+        :param columns: Seznam sloupců, do kterých se vkládají hodnoty.
+        :param values: Seznam hodnot odpovídajících sloupcům pro vkládání.
+        """
+        columns_str = ', '.join([f'"{col}"' for col in columns])
+        placeholders = ', '.join('?' * len(columns))
+        sql = f"INSERT INTO {table} ({columns_str}) VALUES ({placeholders})"
+        self.cursor.execute(sql, values)
+        self.conn.commit()
+
+
+    def update_row(self, table, id_num, id_col_name, updated_values):
+        """
+        Aktualizuje řádek v zadané tabulce databáze na základě ID sloupce a jeho hodnoty.
+
+        :param table: Název tabulky, ve které se má aktualizovat řádek.
+        :param id_value: Hodnota ID, podle které se identifikuje řádek k aktualizaci.
+        :param id_col_name: Název sloupce, který obsahuje ID pro identifikaci řádku.
+        :param updated_values: Slovník, kde klíče jsou názvy sloupců a hodnoty jsou aktualizované hodnoty pro tyto sloupce.
+        """
+        set_clause = ', '.join([f"`{key}` = ?" for key in updated_values.keys()])
+        values = list(updated_values.values())
+        values.append(id_num)  # Přidání hodnoty ID na konec seznamu hodnot pro přípravu SQL dotazu
+        sql = f"UPDATE `{table}` SET {set_clause} WHERE `{id_col_name}` = ?"
+
+        self.cursor.execute(sql, values)
+        self.conn.commit()
+
+
     def delete_row(self, evidencni_cislo):
         """
         Smaže řádek ze skladu na základě jeho evidenčního čísla - ve sloupci Evidencni_cislo.      
@@ -651,9 +684,7 @@ class AuditLogView(View):
                                                  values=["VŠE"]+self.months_list, state="readonly")
         self.month_entry_combobox.pack(side=tk.LEFT, padx=5, pady=5)
         self.month_entry_combobox.set("VŠE")
-
-        choice_btn = tk.Button(self.search_frame, text="Vyfiltrovat období", command=self.filter_date)
-        choice_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.month_entry_combobox.bind("<<ComboboxSelected>>", self.on_combobox_date_change)
 
 
     def generate_months_list(self):
@@ -675,7 +706,7 @@ class AuditLogView(View):
                 self.months_list.append(f"{month:02d}-{year}")
 
 
-    def filter_date(self):
+    def on_combobox_date_change(self, event):
         """
         Filtrování zobrazovaných dat v rozsahu počátečního a koncového datumu.
         """
@@ -852,7 +883,7 @@ class ItemFrameBase:
         self.bottom_frame = tk.Frame(self.show_frame)
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
 
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", self.check_and_save)
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=lambda: self.check_before_save(action=action))
         save_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.current_view_instance.show_selected_item)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -872,6 +903,52 @@ class ItemFrameBase:
             name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font, text=name_text)
             name_label.pack(padx=2, pady=2)
 
+
+    def check_before_save(self, action): 
+        """
+        Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
+
+        :Params action: typ prováděné operace.
+        """
+        for col in self.curr_entry_dict["mandatory"]:
+            if not self.entries[col].get():
+                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
+                self.entries[col].focus()
+                return
+        for col in self.curr_entry_dict["pos_integer"]:
+            entry_val = self.entries[col].get()
+            if not entry_val.isdigit() or int(entry_val) < 0:
+                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být celé nezáporné číslo.")
+                self.entries[col].focus()
+                return
+    
+        self.save_item(action, self.id_num)
+
+
+    def save_item(self, action, selected_item_id):
+        """
+        Metoda na uložení nových / upravených dat v databázi.
+
+        :Params action: typ prováděné operace.
+        :Params selected_item_id: v případě akce "edit" je to vybrané ID položky k editaci.
+        """
+        self.entry_values = {}
+        for col, entry in self.entries.items():
+            self.entry_values[col] = entry.get()
+        
+        self.checkbutton_values = {col: (1 if state.get() else 0) for col, state in self.checkbutton_states.items()}
+        combined_values = {**self.entry_values, **self.checkbutton_values}
+        values_to_insert = [combined_values[col] for col in self.col_names]
+                
+        if action == "add":
+            success = self.controller.insert_new_item(self.current_table, self.col_names, values_to_insert)
+        elif action == "edit" and selected_item_id is not None:
+            success = self.controller.update_row(self.current_table, selected_item_id, self.curr_table_config["id_col_name"], combined_values)
+        if not success:
+            return
+            
+        self.controller.show_data(self.current_table)
+        
 
 class ItemFrameShow(ItemFrameBase):
     """
@@ -945,8 +1022,17 @@ class ItemFrameEdit(ItemFrameBase):
         """
         self.title_dict = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
         self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
-                                                   'Min_Mnozstvi_ks')},                                 
-                           "dodavatele": {"read_only": ('id', 'Dodavatel')}}
+                                                   'Min_Mnozstvi_ks', 'Datum_nakupu', 'Jednotkova_cena_EUR',
+                                                   'Celkova_cena_EUR'),
+                                     "mandatory": ('Nazev_dilu',),
+                                     "pos_integer": ('Interne_cislo',),
+                                     },
+                           
+                           "dodavatele": {"read_only": ('id', 'Dodavatel'),
+                                          "mandatory": (),
+                                          "pos_integer": (),
+                                          }
+                           }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
 
@@ -1012,6 +1098,7 @@ class ItemFrameAdd(ItemFrameBase):
         """
         self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        self.id_num = None
 
 
     def init_curr_dict(self):
@@ -1027,12 +1114,14 @@ class ItemFrameAdd(ItemFrameBase):
                                                      'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
                                      "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
                                                 'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
-                                     "mandatory": ('Nazev_dilu','Dodavatel'),
+                                     "mandatory": ('Nazev_dilu', 'Dodavatel'),
+                                     "pos_integer": (),
                                      },                                 
                            "dodavatele": {"read_only": ('id',),
                                           "pack_forget": (),
                                           "insert": {'id': self.new_id},
                                           "mandatory": ('Dodavatel',),
+                                          "pos_integer": (),
                                           }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1081,57 +1170,7 @@ class ItemFrameAdd(ItemFrameBase):
                     label.pack_forget()
                     entry.pack_forget()
             frame.pack(fill=tk.X)
-
-    # Metoda pro prověření správnosti zadaných hodnot do formuláře
-    def check_and_save(self): 
-        """
-        Metoda pro kontrolu zadání povinných dat před uložením.
-
-        :Params action: typ prováděné operace.
-        """
-        for col in self.curr_entry_dict["mandatory"]:
-            if not self.entries[col].get():
-                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
-                return
-        self.save_item("add")
-        
-   
-  
-    def save_item(self, action, selected_item_id=None):
-        """
-        Metoda na uložení nových / upravených dat v databázi.
-
-        :Params action: typ prováděné operace.
-        """        
-        entry_values = {}
-        for col, entry in self.entries.items():
-            entry_values[col] = entry.get()
-        
-        # Zpracování stavů Checkbutton - příklad konverze True/False na 1/0
-        checkbutton_values = {col: (1 if state.get() else 0) for col, state in checkbutton_states.items()}
-            
-        # Kombinace hodnot z Entry a Checkbutton do jednoho slovníku
-        combined_values = {**entry_values, **checkbutton_values}
-        
-        # Správně uspořádané hodnoty pro předání metodě insert_item
-        values_to_insert = [combined_values[col] for col in self.columns]
-                
-        if action == "add":
-            # Kontrola, zda už existuje položka se stejným evidenčním číslem - !!!vyřešit do budoucna, dáta do cyklu a dokud existuje, zvýšit o jedno evid.č. a intern.č.!!!
-            evidencni_cislo = combined_values['Evidencni_cislo']
-            if self.db.item_exists(evidencni_cislo):
-                messagebox.showwarning("Varování", "Položka se zadaným evidenčním číslem už v databázi existuje.")
-                return  # Zastaví další zpracování
-            else:
-                # Přidání nové položky, pokud neexistuje
-                self.db.insert_item(self.columns, values_to_insert)
-        elif action == "edit" and selected_item_id is not None:
-            # Logika pro úpravu existující položky
-            self.db.update_row(selected_item_id, combined_values)
-            
-        # Nahrání aktuálních dat z tabulky sklad
-        self.load_data() 
-    
+         
 
 class ItemFrameMovements(ItemFrameBase):
     """
@@ -1350,6 +1389,44 @@ class Controller:
         return self.model.get_max_interne_cislo()
 
 
+    def insert_new_item(self, table, columns, values_to_insert):
+        """
+        Pokusí se vložit novou položku do zadané tabulky databáze. Pokud operace selže kvůli
+        porušení omezení integrity (např. pokusu o vložení položky s již existujícím
+        unikátním identifikátorem), zobrazí se uživatelské varování.
+
+        :param table: Název tabulky v databázi, do které se má vložit nová položka.
+        :param columns: Seznam názvů sloupců, do kterých se mají vložit hodnoty.
+        :param values_to_insert: Seznam hodnot odpovídajících názvům sloupců v `columns`, které se mají vložit.
+        :return: Vrátí True, pokud byla položka úspěšně vložena. V případě, že operace selže kvůli
+                 porušení omezení integrity, zobrazí varování a vrátí False.
+        """
+        try:
+            self.model.insert_item(table, columns, values_to_insert)
+        except sqlite3.IntegrityError:
+            messagebox.showwarning("Varování", "Položka se zadaným evidenčním číslem už v databázi existuje.")
+            return False
+        return True     
+
+
+    def update_row(self, table, selected_item_id, id_col_name, combined_values):
+        """
+        Aktualizuje položku v zadané tabulce databáze na základě jejího identifikátoru.
+
+        :param table: Název tabulky, ve které se má aktualizovat položka.
+        :param selected_item_id: Hodnota identifikátoru (ID) položky, která se má aktualizovat.
+        :param id_col_name: Název sloupce, který obsahuje ID položky.
+        :param combined_values: Slovník obsahující aktualizované hodnoty položky, kde klíče jsou názvy sloupců a hodnoty jsou nové hodnoty pro tyto sloupce.
+        :return: Vrací True, pokud aktualizace proběhla úspěšně, jinak False.
+        """
+        try:
+            self.model.update_row(table, selected_item_id, id_col_name, combined_values)
+        except Exception as e:
+            messagebox.showwarning("Varování", f"Chyba při ukládání dat do databáze: {e}!")
+            return False
+        return True
+
+
     def delete_row(self, evidencni_cislo):
         """
         Vymazání položky vybrané v treeview - pouze nulová poslední zadaná položka.
@@ -1375,7 +1452,6 @@ class Controller:
         else:    
             col_names = self.model.fetch_col_names(table)
             data = self.model.fetch_data(table)
-
 
         try:
             with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
