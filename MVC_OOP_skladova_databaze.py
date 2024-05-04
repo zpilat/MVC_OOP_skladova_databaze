@@ -130,7 +130,7 @@ class View:
                         'XL_ENE1': 'XL ENE1', 'XL_ENE2': 'XL ENE2', 'IPSEN_W': 'IPSEN W', 'HSH_W': 'HSH W',
                         'KW': 'KW', 'KW1': 'KW1', 'KW2': 'KW2', 'KW3': 'KW3', 'Umisteni': 'Umístění',
                         'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu', 'Cislo_objednavky': 'Objednávka',
-                        'Jednotkova_cena_EUR': 'Cena EUR/ks', 'Celkova_cena_EUR': 'Celkem EUR',
+                        'Jednotkova_cena_EUR': 'EUR/jednotka', 'Celkova_cena_EUR': 'Celkem EUR',
                         'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
                         'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
                         'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID', 'Kontakt': 'Kontaktní osoba'}
@@ -852,7 +852,7 @@ class ItemFrameBase:
         self.bottom_frame = tk.Frame(self.show_frame)
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
 
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=lambda: self.check_before_save(action = action))
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", self.check_and_save)
         save_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.current_view_instance.show_selected_item)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -884,8 +884,6 @@ class ItemFrameShow(ItemFrameBase):
         :param: Inicializovány v rodičovské třídě.
         """
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "ZOBRAZENÍ SKLADOVÉ KARTY", "audit_log": "ZOBRAZENÍ POHYBU NA SKLADĚ",
-                           "dodavatele": "ZOBRAZENÍ DODAVATELE"}
 
 
     def clear_item_frame(self):
@@ -897,6 +895,13 @@ class ItemFrameShow(ItemFrameBase):
         for widget in self.show_frame.winfo_children():
             widget.destroy()  
 
+    def init_curr_dict(self):
+        """
+        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
+        """        
+        self.title_dict = {"sklad": "ZOBRAZENÍ SKLADOVÉ KARTY", "audit_log": "ZOBRAZENÍ POHYBU NA SKLADĚ",
+                           "dodavatele": "ZOBRAZENÍ DODAVATELE"}
+
 
     def show_selected_item_details(self, item_values):
         """
@@ -904,7 +909,8 @@ class ItemFrameShow(ItemFrameBase):
         Název položky je v title_frame, zbylé informace v show_frame
         """
         self.item_values = item_values   
-        self.clear_item_frame()        
+        self.clear_item_frame()
+        self.init_curr_dict()
         self.initialize_title()
           
         for index, value in enumerate(self.item_values):
@@ -931,13 +937,13 @@ class ItemFrameEdit(ItemFrameBase):
         """
         self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
 
        
-    def init_curr_entry_dict(self):
+    def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
-        """        
+        """
+        self.title_dict = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
         self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
                                                    'Min_Mnozstvi_ks')},                                 
                            "dodavatele": {"read_only": ('id', 'Dodavatel')}}
@@ -950,13 +956,13 @@ class ItemFrameEdit(ItemFrameBase):
 
         :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
         """
-        self.item_values = item_values    
+        self.item_values = item_values
+        self.init_curr_dict()        
         self.initialize_title()
         self.update_frames(action='edit')                
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
         self.checkbutton_states = {}
         self.entries = {}
-        self.init_curr_entry_dict()
 
         for index, col in enumerate(self.col_names):           
             if col in self.check_columns:
@@ -1006,22 +1012,27 @@ class ItemFrameAdd(ItemFrameBase):
         """
         self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-        self.title_dict = {"sklad": "VYTVOŘENÍ  SKLADOVÉ KARTY", "dodavatele": "VYTVOŘENÍ DODAVATELE"}
 
 
-    def init_curr_entry_dict(self):
+    def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
+        self.title_dict = {"sklad": "VYTVOŘENÍ  SKLADOVÉ KARTY", "dodavatele": "VYTVOŘENÍ DODAVATELE"}
         self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Datum_nakupu',
-                                                   'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky',
-                                                   'Jednotky', 'Dodavatel', 'Min_Mnozstvi_ks'),
+        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
+                                                   'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky', 'Jednotky', 'Dodavatel',
+                                                   'Min_Mnozstvi_ks'),
+                                     "pack_forget": ('Objednano', 'Mnozstvi_ks_m_l', 'Datum_nakupu', 'Cislo_objednavky',
+                                                     'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
                                      "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
-                                                'Datum_nakupu': self.actual_date, 'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
+                                                'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
+                                     "mandatory": ('Nazev_dilu','Dodavatel'),
                                      },                                 
                            "dodavatele": {"read_only": ('id',),
+                                          "pack_forget": (),
                                           "insert": {'id': self.new_id},
+                                          "mandatory": ('Dodavatel',),
                                           }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1034,9 +1045,9 @@ class ItemFrameAdd(ItemFrameBase):
         self.new_interne_cislo = new_interne_cislo
         self.entries = {}
         self.checkbutton_states = {}
+        self.init_curr_dict()
         self.initialize_title(add_name_label=False)
         self.update_frames(action='add')
-        self.init_curr_entry_dict()
                    
         for index, col in enumerate(self.col_names):
             if col in self.check_columns:
@@ -1059,15 +1070,68 @@ class ItemFrameAdd(ItemFrameBase):
                         entry = ttk.Combobox(frame, width=27, values=self.suppliers)             
                         entry.set("")
                     case _:
-                        entry = tk.Entry(frame, width=30)            
-                        if col == 'Nazev_dilu': entry.config(background='yellow')                                      
+                        entry = tk.Entry(frame, width=30)                                                
                 label.pack(side=tk.LEFT, pady=6)
                 entry.pack(side=tk.RIGHT, padx=2, pady=6)
                 self.entries[col] = entry
-                if col in self.curr_entry_dict["insert"]: entry.insert(0, self.curr_entry_dict["insert"][col]) 
-                if col in self.curr_entry_dict["read_only"]: entry.config(state='readonly') 
+                if col in self.curr_entry_dict["mandatory"]: entry.config(background='yellow') 
+                if col in self.curr_entry_dict["insert"]: entry.insert(0, self.curr_entry_dict["insert"][col])
+                if col in self.curr_entry_dict["read_only"]: entry.config(state='readonly')
+                if col in self.curr_entry_dict["pack_forget"]:
+                    label.pack_forget()
+                    entry.pack_forget()
             frame.pack(fill=tk.X)
 
+    # Metoda pro prověření správnosti zadaných hodnot do formuláře
+    def check_and_save(self): 
+        """
+        Metoda pro kontrolu zadání povinných dat před uložením.
+
+        :Params action: typ prováděné operace.
+        """
+        for col in self.curr_entry_dict["mandatory"]:
+            if not self.entries[col].get():
+                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
+                return
+        self.save_item("add")
+        
+   
+  
+    def save_item(self, action, selected_item_id=None):
+        """
+        Metoda na uložení nových / upravených dat v databázi.
+
+        :Params action: typ prováděné operace.
+        """        
+        entry_values = {}
+        for col, entry in self.entries.items():
+            entry_values[col] = entry.get()
+        
+        # Zpracování stavů Checkbutton - příklad konverze True/False na 1/0
+        checkbutton_values = {col: (1 if state.get() else 0) for col, state in checkbutton_states.items()}
+            
+        # Kombinace hodnot z Entry a Checkbutton do jednoho slovníku
+        combined_values = {**entry_values, **checkbutton_values}
+        
+        # Správně uspořádané hodnoty pro předání metodě insert_item
+        values_to_insert = [combined_values[col] for col in self.columns]
+                
+        if action == "add":
+            # Kontrola, zda už existuje položka se stejným evidenčním číslem - !!!vyřešit do budoucna, dáta do cyklu a dokud existuje, zvýšit o jedno evid.č. a intern.č.!!!
+            evidencni_cislo = combined_values['Evidencni_cislo']
+            if self.db.item_exists(evidencni_cislo):
+                messagebox.showwarning("Varování", "Položka se zadaným evidenčním číslem už v databázi existuje.")
+                return  # Zastaví další zpracování
+            else:
+                # Přidání nové položky, pokud neexistuje
+                self.db.insert_item(self.columns, values_to_insert)
+        elif action == "edit" and selected_item_id is not None:
+            # Logika pro úpravu existující položky
+            self.db.update_row(selected_item_id, combined_values)
+            
+        # Nahrání aktuálních dat z tabulky sklad
+        self.load_data() 
+    
 
 class ItemFrameMovements(ItemFrameBase):
     """
@@ -1083,7 +1147,7 @@ class ItemFrameMovements(ItemFrameBase):
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
 
        
-    def init_curr_entry_dict(self):
+    def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
@@ -1096,7 +1160,8 @@ class ItemFrameMovements(ItemFrameBase):
                                      "actual_value": {'Typ_operace': self.title, 'Cas_operace': self.actual_date_time,
                                                       'Operaci_provedl': self.logged_user,
                                                       'Datum_nakupu': self.actual_date if self.action=='prijem' else "",
-                                                      'Datum_vydeje': self.actual_date if self.action=='vydej' else ""}
+                                                      'Datum_vydeje': self.actual_date if self.action=='vydej' else ""},
+                                     "mandatory": ('Zmena_mnozstvi', 'Cislo_objednavky'),
                                      }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1105,9 +1170,8 @@ class ItemFrameMovements(ItemFrameBase):
                                            'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id')}
         self.not_insert_dict = {"prijem": 'Datum_vydeje', "vydej": 'Datum_nakupu'}
         self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II',
-                        'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', "Ostatní")
+                        'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', 'Ostatní')
 
-      
 
     def enter_item_movements(self, action, item_values, audit_log_col_names):
         """
@@ -1129,7 +1193,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.actual_unit_price = self.item_values[self.curr_table_config["unit_price_col"]]
         self.actual_date = datetime.now().strftime("%Y-%m-%d")
         self.actual_date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.init_curr_entry_dict()
+        self.init_curr_dict()
        
         if self.action=='vydej' and self.actual_quantity==0:
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
@@ -1152,7 +1216,8 @@ class ItemFrameMovements(ItemFrameBase):
             else:
                 entry_al = tk.Entry(self.left_frame, width=28)                        
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
-            if col == 'Zmena_mnozstvi': entry_al.config(background='yellow')
+                
+            if col in self.curr_entry_dict["mandatory"]: entry_al.config(background='yellow')
             if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])        
             if col in self.curr_entry_dict["actual_value"]: entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
             if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')                
