@@ -149,7 +149,7 @@ class View:
         self.initialize_treeview(self.tree_frame)
         self.initialize_fonts()
         self.additional_gui_elements()
-        self.selected_option = "PŘÍJEM/VÝDEJ"
+        self.selected_option = "VŠE"
         self.start_date = None
         self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)   
@@ -326,7 +326,7 @@ class View:
         """
         Vyfiltrování dat podle zadaných dat v search_entry ve všech tabulkách.
         V tabulce sklad navíc dle zaškrtnutých check buttonů a low stock filtru.
-        V tabulce audit_log navíc dle comboboxu "PŘÍJEM/VÝDEJ" a v rozmezí datumů v date entry.
+        V tabulce audit_log navíc dle comboboxu "VŠE" a v rozmezí datumů v date entry.
 
         :param data: Data pro filtraci dle search entry.
         :param filter_low_stock: Parametr pro filtraci položek pod minimálním množstvím.
@@ -607,7 +607,7 @@ class AuditLogView(View):
         self.current_table = 'audit_log'
         self.col_names = col_names
         
-        self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace')
+        self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace', 'id')
         self.check_columns = ('Ucetnictvi',)
 
         self.customize_ui()
@@ -636,20 +636,21 @@ class AuditLogView(View):
         self.operation_label = tk.Label(self.search_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.options = ["PŘÍJEM/VÝDEJ", "PŘÍJEM", "VÝDEJ"]
-        self.operation_combobox = ttk.Combobox(self.search_frame, values=self.options)
+        self.options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
+        self.operation_combobox = ttk.Combobox(self.search_frame, values=self.options, state="readonly")
         self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
 
-        self.operation_combobox.set("PŘÍJEM/VÝDEJ")
+        self.operation_combobox.set("VŠE")
         self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)
 
         self.month_entry_label = tk.Label(self.search_frame, text="Výběr měsíce:")
         self.month_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.generate_months_list()
-        self.month_entry_combobox = ttk.Combobox(self.search_frame, width=12, values=["Neomezeně"]+self.months_list)
+        self.month_entry_combobox = ttk.Combobox(self.search_frame, width=12,
+                                                 values=["VŠE"]+self.months_list, state="readonly")
         self.month_entry_combobox.pack(side=tk.LEFT, padx=5, pady=5)
-        self.month_entry_combobox.set("Neomezeně")
+        self.month_entry_combobox.set("VŠE")
 
         choice_btn = tk.Button(self.search_frame, text="Vyfiltrovat období", command=self.filter_date)
         choice_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -679,7 +680,7 @@ class AuditLogView(View):
         Filtrování zobrazovaných dat v rozsahu počátečního a koncového datumu.
         """
         selected_month_year = self.month_entry_combobox.get()
-        if selected_month_year == "Neomezeně":
+        if selected_month_year == "VŠE":
             self.start_date=None
             self.end_date=None
         else:
@@ -937,7 +938,8 @@ class ItemFrameEdit(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l')},                                 
+        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
+                                                   'Min_Mnozstvi_ks')},                                 
                            "dodavatele": {"read_only": ('id', 'Dodavatel')}}
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
@@ -1013,7 +1015,8 @@ class ItemFrameAdd(ItemFrameBase):
         """
         self.actual_date = datetime.now().strftime("%Y-%m-%d")
         self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Datum_nakupu',
-                                                   'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky'),
+                                                   'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky',
+                                                   'Jednotky', 'Dodavatel', 'Min_Mnozstvi_ks'),
                                      "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
                                                 'Datum_nakupu': self.actual_date, 'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
                                      },                                 
@@ -1085,7 +1088,8 @@ class ItemFrameMovements(ItemFrameBase):
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
         self.entry_dict = {"sklad": {"read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Cas_operace','Operaci_provedl'),
+                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Cas_operace','Operaci_provedl',
+                                                   'Pouzite_zarizeni', 'Dodavatel'),
                                      "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
                                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano'
                                                            'Poznamka', 'Nazev_dilu'),
