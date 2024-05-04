@@ -290,19 +290,20 @@ class View:
             self.tree.column(col, **col_params[idx])
    
 
-    def add_data(self, filter_low_stock=False):
+    def add_data(self, filter_low_stock=False, current_data=None):
         """
         Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
         Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
         Zvýraznění řádků pod minimem. Označení první položky v Treeview.
         Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
         """
-
+        if current_data:
+            self.current_data = current_data
+            
         for item in self.tree.get_children():
             self.tree.delete(item)
 
         filtered_data = self.filter_data(self.current_data, filter_low_stock)
-
 
         sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
 
@@ -475,7 +476,7 @@ class SkladView(View):
     """
     Třída SkladView pro specifické zobrazení dat skladu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names, data):
+    def __init__(self, root, controller, col_names):
         """
         Inicializace specifického zobrazení pro sklad.
         
@@ -486,7 +487,6 @@ class SkladView(View):
         super().__init__(root, controller)
         self.current_table = 'sklad'
         self.col_names = col_names
-        self.current_data = data
         self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
                               'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
                               'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
@@ -566,7 +566,8 @@ class SkladView(View):
         response = messagebox.askyesno("Potvrzení mazání", "Opravdu chcete smazat vybraný řádek?")
         if response: 
             self.controller.delete_row(evidencni_cislo)
-            self.tree.delete(selected_item[0])
+            self.tree.delete(self.selected_item)
+            self.mark_first_item()
             messagebox.showinfo("Informace", "Vymazána poslední zadaná položka!")
         self.controller.show_data(self.current_table)
         
@@ -594,7 +595,7 @@ class AuditLogView(View):
     """
     Třída AuditLogView pro specifické zobrazení dat audit logu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names, data):
+    def __init__(self, root, controller, col_names):
         """
         Inicializace specifického zobrazení pro audit log.
         
@@ -605,7 +606,6 @@ class AuditLogView(View):
         super().__init__(root, controller)
         self.current_table = 'audit_log'
         self.col_names = col_names
-        self.current_data = data
         
         self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace')
         self.check_columns = ('Ucetnictvi',)
@@ -728,7 +728,7 @@ class DodavateleView(View):
     """
     Třída DodavateleView pro specifické zobrazení dat z tabulky dodavatele. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names, data):
+    def __init__(self, root, controller, col_names):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
@@ -739,7 +739,6 @@ class DodavateleView(View):
         super().__init__(root, controller)
         self.current_table = 'dodavatele'
         self.col_names = col_names
-        self.current_data = data
 
         self.check_columns = ()
         self.hidden_columns = ()
@@ -1201,20 +1200,20 @@ class Controller:
         col_names = self.model.fetch_col_names(table)
 
         if self.current_view_instance is None:
-            self.current_view_instance = SkladView(self.root, self, col_names, data)
+            self.current_view_instance = SkladView(self.root, self, col_names)
             self.current_table = table
         else:
             if self.current_table != table:
                 self.current_table = table
                 self.current_view_instance.frame.destroy()
                 if table == "sklad":
-                    self.current_view_instance = SkladView(self.root, self, col_names, data)
+                    self.current_view_instance = SkladView(self.root, self, col_names)
                 elif table == "audit_log":
-                    self.current_view_instance = AuditLogView(self.root, self, col_names, data)
+                    self.current_view_instance = AuditLogView(self.root, self, col_names)
                 elif table == "dodavatele":
-                    self.current_view_instance = DodavateleView(self.root, self, col_names, data)
+                    self.current_view_instance = DodavateleView(self.root, self, col_names)
 
-        self.current_view_instance.add_data()
+        self.current_view_instance.add_data(current_data=data)
 
 
     def show_data_for_editing(self, table, id_num, id_col_name, master, tab2hum, check_columns):
