@@ -1312,14 +1312,28 @@ class ItemFrameMovements(ItemFrameBase):
                 return
 
         for col in self.curr_entry_dict.get("pos_real", []):
-            if float(self.entries_al[col].get()) <= 0:
-                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo.")
+            entry_val = self.entries_al[col].get()
+            try:
+                float_entry_val = float(entry_val)
+                if float_entry_val <= 0:
+                    messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
+                    self.entries_al[col].focus()
+                    return
+            except ValueError:
+                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
                 self.entries_al[col].focus()
                 return
 
         for col in self.curr_entry_dict.get("date", []):
-            if not re.match(r'^\d{4}-\d{2}-\d{2}$', self.entries_al[col].get()):
-                messagebox.showwarning("Chyba", "Datum nákupu musí být ve formátu YYYY-MM-DD.")
+            date_str = self.entries_al[col].get()
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+                messagebox.showwarning("Chyba", "Datum nákupu musí být ve formátu RRRR-MM-DD.")
+                self.entries_al[col].focus()
+                return
+            try:
+                datetime.strptime(date_str, "%Y-%m-%d")
+            except ValueError:
+                messagebox.showwarning("Chyba", f"Neplatné datum: {date_str}. Zadejte prosím platné datum.")
                 self.entries_al[col].focus()
                 return
             
