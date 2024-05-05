@@ -598,12 +598,15 @@ class SkladView(View):
             return           
         response = messagebox.askyesno("Potvrzení mazání", "Opravdu chcete smazat vybraný řádek?")
         if response: 
-            self.controller.delete_row(evidencni_cislo)
+            success = self.controller.delete_row(evidencni_cislo)
             self.tree.delete(self.selected_item)
             self.mark_first_item()
-            messagebox.showinfo("Informace", "Vymazána poslední zadaná položka!")
-        self.controller.show_data(self.current_table)
-        
+            if success:
+                messagebox.showinfo("Informace", "Vymazána poslední zadaná položka!")
+            else:
+                return
+            
+        self.controller.show_data(self.current_table)       
 
     def item_movements(self, action):
         """
@@ -638,8 +641,7 @@ class AuditLogView(View):
         """
         super().__init__(root, controller)
         self.current_table = 'audit_log'
-        self.col_names = col_names
-        
+        self.col_names = col_names   
         self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace', 'id')
         self.check_columns = ('Ucetnictvi',)
 
@@ -704,6 +706,7 @@ class AuditLogView(View):
                 if year == current_year and month > current_month:
                     break
                 self.months_list.append(f"{month:02d}-{year}")
+        self.months_list.reverse() 
 
 
     def on_combobox_date_change(self, event):
@@ -746,7 +749,7 @@ class AuditLogView(View):
                 case 'Nazev_dilu':
                     col_params.append({"width": 230, "anchor": "w"})                
                 case 'Dodavatel' | 'Pouzite_zarizeni':
-                    col_params.append({"width": 130, "anchor": "w"})
+                    col_params.append({"width": 100, "anchor": "w"})
                 case 'Jednotky' | 'Evidencni_cislo' | 'Interne_cislo':
                     col_params.append({"width": 30, "anchor": "center"})
                 case _ if col in self.hidden_columns:
@@ -893,7 +896,7 @@ class ItemFrameBase:
         """
         Vytvoření nadpisu dle typu zobrazovaných dat.
         """
-        self.title = self.title_dict[self.current_table]
+        self.title = self.curr_entry_dict["title"]
         self.order_of_name = self.curr_table_config["order_of_name"]
 
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
@@ -910,18 +913,19 @@ class ItemFrameBase:
 
         :Params action: typ prováděné operace.
         """
-        for col in self.curr_entry_dict["mandatory"]:
+        for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries[col].get():
                 messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
                 self.entries[col].focus()
                 return
-        for col in self.curr_entry_dict["pos_integer"]:
+            
+        for col in self.curr_entry_dict.get("pos_integer", []):
             entry_val = self.entries[col].get()
             if not entry_val.isdigit() or int(entry_val) < 0:
                 messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být celé nezáporné číslo.")
                 self.entries[col].focus()
                 return
-    
+            
         self.save_item(action, self.id_num)
 
 
@@ -976,9 +980,12 @@ class ItemFrameShow(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.title_dict = {"sklad": "ZOBRAZENÍ SKLADOVÉ KARTY", "audit_log": "ZOBRAZENÍ POHYBU NA SKLADĚ",
-                           "dodavatele": "ZOBRAZENÍ DODAVATELE"}
-
+        self.entry_dict = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY",},
+                           "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ",},
+                           "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE",},
+                           }
+        self.curr_entry_dict = self.entry_dict[self.current_table]
+                           
 
     def show_selected_item_details(self, item_values):
         """
@@ -1020,17 +1027,16 @@ class ItemFrameEdit(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.title_dict = {"sklad": "ÚPRAVA SKLADOVÉ KARTY", "dodavatele": "ÚPRAVA DODAVATELE"}
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
+        self.entry_dict = {"sklad": {"title": "ÚPRAVA SKLADOVÉ KARTY",
+                                     "read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
                                                    'Min_Mnozstvi_ks', 'Datum_nakupu', 'Jednotkova_cena_EUR',
                                                    'Celkova_cena_EUR'),
                                      "mandatory": ('Nazev_dilu',),
                                      "pos_integer": ('Interne_cislo',),
                                      },
                            
-                           "dodavatele": {"read_only": ('id', 'Dodavatel'),
-                                          "mandatory": (),
-                                          "pos_integer": (),
+                           "dodavatele": {"title": "ÚPRAVA DODAVATELE",
+                                          "read_only": ('id', 'Dodavatel'),
                                           }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1105,9 +1111,9 @@ class ItemFrameAdd(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.title_dict = {"sklad": "VYTVOŘENÍ  SKLADOVÉ KARTY", "dodavatele": "VYTVOŘENÍ DODAVATELE"}
         self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
+        self.entry_dict = {"sklad": {"title": "VYTVOŘENÍ  SKLADOVÉ KARTY",
+                                     "read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
                                                    'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky', 'Jednotky', 'Dodavatel',
                                                    'Min_Mnozstvi_ks'),
                                      "pack_forget": ('Objednano', 'Mnozstvi_ks_m_l', 'Datum_nakupu', 'Cislo_objednavky',
@@ -1115,13 +1121,12 @@ class ItemFrameAdd(ItemFrameBase):
                                      "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
                                                 'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
                                      "mandatory": ('Nazev_dilu', 'Dodavatel'),
-                                     "pos_integer": (),
                                      },                                 
-                           "dodavatele": {"read_only": ('id',),
+                           "dodavatele": {"title": "VYTVOŘENÍ DODAVATELE",
+                                          "read_only": ('id',),
                                           "pack_forget": (),
                                           "insert": {'id': self.new_id},
                                           "mandatory": ('Dodavatel',),
-                                          "pos_integer": (),
                                           }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1189,27 +1194,41 @@ class ItemFrameMovements(ItemFrameBase):
     def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
-        """        
-        self.entry_dict = {"sklad": {"read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Cas_operace','Operaci_provedl',
-                                                   'Pouzite_zarizeni', 'Dodavatel'),
-                                     "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                                           'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano'
-                                                           'Poznamka', 'Nazev_dilu'),
-                                     "actual_value": {'Typ_operace': self.title, 'Cas_operace': self.actual_date_time,
-                                                      'Operaci_provedl': self.logged_user,
-                                                      'Datum_nakupu': self.actual_date if self.action=='prijem' else "",
-                                                      'Datum_vydeje': self.actual_date if self.action=='vydej' else ""},
-                                     "mandatory": ('Zmena_mnozstvi', 'Cislo_objednavky'),
-                                     }
-                           }
-        self.curr_entry_dict = self.entry_dict[self.current_table]
-        self.grid_forget_dict = {"prijem": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni', 'Datum_vydeje', 'id'),
-                                 "vydej": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 
-                                           'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id')}
-        self.not_insert_dict = {"prijem": 'Datum_vydeje', "vydej": 'Datum_nakupu'}
-        self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II',
-                        'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', 'Ostatní')
+        """
+        self.actual_date = datetime.now().strftime("%Y-%m-%d")
+        self.action_dict = {
+            "sklad": {"prijem": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni',
+                                                 'Datum_vydeje', 'Cas_operace', 'id'),
+                                 "mandatory": ('Zmena_mnozstvi', 'Cislo_objednavky'),
+                                 "date":('Datum_nakupu',),
+                                 "pos_real": ('Jednotkova_cena_EUR',),
+                                 "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.logged_user,
+                                                  'Datum_nakupu': self.actual_date, 'Datum_vydeje': ""},
+                                 },
+                      "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel',
+                                                'Cas_operace', 'Cislo_objednavky', 'Jednotkova_cena_EUR',
+                                                'Datum_nakupu', 'id'),
+                                "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni'),
+                                "date":('Datum_vydeje',),
+                                "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.logged_user,
+                                                  'Datum_nakupu': "", 'Datum_vydeje': self.actual_date},                                
+                                },
+                      },
+            }              
+        self.title = self.action_dict[self.current_table][self.action]["actual_value"]['Typ_operace']
+        self.entry_dict = {
+            "sklad": {"title": f"{self.title} ZBOŽÍ",
+                      "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
+                                    'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni', 'Dodavatel'),
+                      "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano'
+                                            'Poznamka', 'Nazev_dilu'),
+                      },
+            }  
+        self.curr_entry_dict = self.entry_dict[self.current_table] | self.action_dict[self.current_table][self.action]
+        self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I',
+                        'LAC_II', 'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1',
+                        'KW2', 'KW3', 'Ostatní')
 
 
     def enter_item_movements(self, action, item_values, audit_log_col_names):
@@ -1222,17 +1241,14 @@ class ItemFrameMovements(ItemFrameBase):
         self.action = action
         self.item_values = item_values
         self.audit_log_col_names = audit_log_col_names
-        self.title = "PŘÍJEM" if self.action == "prijem" else "VÝDEJ"
-        self.title_dict = {"sklad": f"{self.title} ZBOŽÍ"}
+        self.init_curr_dict()
         self.initialize_title()
-        self.update_frames(action=self.action)  # Změnit metodu check_form na podtřídní metodu check_before_save!!!           
+        self.update_frames(action=self.action)         
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        self.id_col_name = self.curr_table_config["id_col_name"]
         self.entries_al = {}
         self.actual_quantity = self.item_values[self.curr_table_config["quantity_col"]]
         self.actual_unit_price = self.item_values[self.curr_table_config["unit_price_col"]]
-        self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.actual_date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.init_curr_dict()
        
         if self.action=='vydej' and self.actual_quantity==0:
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
@@ -1260,10 +1276,108 @@ class ItemFrameMovements(ItemFrameBase):
             if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])        
             if col in self.curr_entry_dict["actual_value"]: entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
             if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')                
-            if col in self.grid_forget_dict[self.action]:
+            if col in self.curr_entry_dict["grid_forget"]:
                 label.grid_forget()
                 entry_al.grid_forget()
             self.entries_al[col] = entry_al
+
+
+    def check_before_save(self, action): 
+        """
+        Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
+
+        :Params action: typ prováděné operace.
+        """
+        for col in self.curr_entry_dict.get("mandatory", []):
+            if not self.entries_al[col].get():
+                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
+                self.entries_al[col].focus()
+                return
+            
+        for col in self.curr_entry_dict.get("pos_integer", []):
+            entry_val = self.entries_al[col].get()
+            if not entry_val.isdigit() or int(entry_val) <= 0:
+                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné celé číslo.")
+                self.entries_al[col].focus()
+                return
+
+        for col in self.curr_entry_dict.get("pos_real", []):
+            if float(self.entries_al[col].get()) <= 0:
+                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo.")
+                self.entries_al[col].focus()
+                return
+
+        for col in self.curr_entry_dict.get("date", []):
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', self.entries_al[col].get()):
+                messagebox.showwarning("Chyba", "Datum nákupu musí být ve formátu YYYY-MM-DD.")
+                self.entries_al['Datum_nakupu'].focus()
+                return
+            
+        self.calculate_before_save_to_audit_log()
+        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names, self.values_to_audit_log)
+        if not success:
+            return
+        self.calculate_before_save_to_sklad()
+        success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
+        if not success:
+            return
+
+        self.controller.show_data(self.current_table)
+        
+
+    def calculate_before_save_to_audit_log(self):
+        """
+        Vypočítá hodnoty před uložením do audit logu.
+        
+        Tato metoda upraví hodnoty pro změnu množství, jednotkovou cenu a celkovou cenu operace,
+        a také aktualizuje nové množství na skladě. Výsledné hodnoty jsou připraveny k uložení do audit logu.
+        """
+        quantity_change = int(self.entries_al['Zmena_mnozstvi'].get())
+        unit_price = float(self.entries_al['Jednotkova_cena_EUR'].get())
+        quantity = int(self.entries_al['Mnozstvi_ks_m_l'].get())
+
+        if self.action == 'vydej': 
+            quantity_change = -quantity_change
+        total_price = unit_price * quantity_change
+        new_quantity = quantity + quantity_change
+
+        self.values = {col: entry_al.get() for col, entry_al in self.entries_al.items()}
+        self.values['Cas_operace'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")    
+        self.values['Zmena_mnozstvi'] = str(quantity_change)
+        self.values['Celkova_cena_EUR'] = str(total_price)
+        self.values['Mnozstvi_ks_m_l'] = str(new_quantity)
+        
+        self.values_to_audit_log = [self.values[col] for col in self.audit_log_col_names]
+
+
+    def calculate_before_save_to_sklad(self):
+        """
+        Upravuje a připravuje hodnoty pro uložení do tabulky sklad v závislosti na provedené akci (příjem/výdej).
+
+        Výpočet nové celkové ceny a průměrné jednotkové ceny pro příjem a aktualizace celkové ceny pro výdej.
+        Změny jsou reflektovány ve slovníku `self.values`, který je poté použit pro aktualizaci záznamu v databázi.
+        """
+        quantity_change = int(self.values['Zmena_mnozstvi'])
+        new_quantity = int(self.values['Mnozstvi_ks_m_l'])
+        new_unit_price = float(self.values['Jednotkova_cena_EUR'])
+
+        if self.action == 'prijem':
+            if self.actual_quantity > 0:
+                self.actual_quantity = int(self.actual_quantity)
+                self.actual_unit_price = float(self.actual_unit_price)
+                new_total_price = round(self.actual_quantity * self.actual_unit_price + quantity_change * new_unit_price, 1)
+                average_unit_price = round(new_total_price / (self.actual_quantity + quantity_change), 1)
+                self.values['Celkova_cena_EUR'] = str(new_total_price)
+                self.values['Jednotkova_cena_EUR'] = str(average_unit_price)
+            tuple_values_to_save = ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
+                                    'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka')
+        elif self.action == 'vydej':
+            new_total_price = round(self.new_quantity * self.actual_unit_price, 1)
+            self.values['Celkova_cena_EUR'] = str(new_total_price)
+            tuple_values_to_save = ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR')
+
+        self.values_to_sklad = {col: self.values[col] for col in tuple_values_to_save if col in self.values}
+
 
 
 class Controller:
@@ -1294,7 +1408,17 @@ class Controller:
         for row in data:
             suppliers.append(row[1])
         return tuple(sorted(suppliers))
-            
+
+
+    def get_max_id(self, curr_table, id_col_name):
+        """
+        Získání nejvyššího evidenčního čísla z tabulky 'sklad'.
+
+        :param id_col: Číslo sloupce, ve kterém jsou id čísla pro danou tabulku.
+        :return Nejvyšší hodnotu ve sloupci 'Evidencni_cislo' v tabulce sklad.
+        """
+        return self.model.get_max_id(curr_table, id_col_name)
+    
 
     def show_data(self, table):
         """
@@ -1362,31 +1486,12 @@ class Controller:
         :param table: Název tabulky pro zobrazení.
         :param id_num: Identifikační číslo položky pro zobrazení.
         """
-        new_interne_cislo = str(self.get_max_interne_cislo() + 1) if self.current_table=="sklad" else None
-        new_id = str(self.get_max_id(table, id_col_name) + 1)
+        new_interne_cislo = str(self.model.get_max_interne_cislo() + 1) if table=="sklad" else None
+        new_id = str(self.model.get_max_id(table, id_col_name) + 1)
         col_names = self.model.fetch_col_names(table)
         
         self.current_item_instance = ItemFrameAdd(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
         self.current_item_instance.add_item(new_id, new_interne_cislo)
-
-
-    def get_max_id(self, curr_table, id_col_name):
-        """
-        Získání nejvyššího evidenčního čísla z tabulky 'sklad'.
-
-        :param id_col: Číslo sloupce, ve kterém jsou id čísla pro danou tabulku.
-        :return Nejvyšší hodnotu ve sloupci 'Evidencni_cislo' v tabulce sklad.
-        """
-        return self.model.get_max_id(curr_table, id_col_name)
-
-
-    def get_max_interne_cislo(self):
-        """
-        Získání nejvyššího interního čísla z tabulky 'sklad'.
-        
-        :return Nejvyšší hodnotu ve sloupci 'Interne_cislo' v tabulce sklad.
-        """
-        return self.model.get_max_interne_cislo()
 
 
     def insert_new_item(self, table, columns, values_to_insert):
@@ -1431,8 +1536,13 @@ class Controller:
         """
         Vymazání položky vybrané v treeview - pouze nulová poslední zadaná položka.
         """
-        self.model.delete_row(evidencni_cislo)
-
+        try:
+            self.model.delete_row(evidencni_cislo)
+        except Exception as e:
+            messagebox.showwarning("Varování", f"Chyba při ukládání dat do databáze: {e}!")
+            return False
+        return True
+    
 
     def export_csv(self, table=None, tree=None):
         """
