@@ -4,7 +4,6 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkFont
 from datetime import datetime, timedelta
-
 import os
 import re
 import sys
@@ -1202,14 +1201,15 @@ class ItemFrameMovements(ItemFrameBase):
                                  "mandatory": ('Zmena_mnozstvi', 'Cislo_objednavky'),
                                  "date":('Datum_nakupu',),
                                  "pos_real": ('Jednotkova_cena_EUR',),
+                                 "pos_integer":('Zmena_mnozstvi',),
                                  "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.logged_user,
                                                   'Datum_nakupu': self.actual_date, 'Datum_vydeje': ""},
                                  },
-                      "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel',
-                                                'Cas_operace', 'Cislo_objednavky', 'Jednotkova_cena_EUR',
-                                                'Datum_nakupu', 'id'),
+                      "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
+                                                'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
                                 "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni'),
                                 "date":('Datum_vydeje',),
+                                "pos_integer":('Zmena_mnozstvi',),
                                 "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.logged_user,
                                                   'Datum_nakupu': "", 'Datum_vydeje': self.actual_date},                                
                                 },
@@ -1247,8 +1247,8 @@ class ItemFrameMovements(ItemFrameBase):
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
         self.id_col_name = self.curr_table_config["id_col_name"]
         self.entries_al = {}
-        self.actual_quantity = self.item_values[self.curr_table_config["quantity_col"]]
-        self.actual_unit_price = self.item_values[self.curr_table_config["unit_price_col"]]
+        self.actual_quantity = int(self.item_values[self.curr_table_config["quantity_col"]])
+        self.actual_unit_price = float(self.item_values[self.curr_table_config["unit_price_col"]])
        
         if self.action=='vydej' and self.actual_quantity==0:
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
@@ -1288,6 +1288,8 @@ class ItemFrameMovements(ItemFrameBase):
 
         :Params action: typ prováděné operace.
         """
+        self.action = action
+        
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries_al[col].get():
                 messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
@@ -1301,6 +1303,14 @@ class ItemFrameMovements(ItemFrameBase):
                 self.entries_al[col].focus()
                 return
 
+        self.quantity_change = int(self.entries_al['Zmena_mnozstvi'].get())
+        self.quantity = int(self.entries_al['Mnozstvi_ks_m_l'].get())
+
+        if self.action=='vydej' and self.quantity_change > self.quantity:
+                messagebox.showwarning("Chyba", "Vydávané množství je větší než množství na skladě.")
+                self.entries_al['Zmena_mnozstvi'].focus()
+                return
+
         for col in self.curr_entry_dict.get("pos_real", []):
             if float(self.entries_al[col].get()) <= 0:
                 messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo.")
@@ -1310,11 +1320,11 @@ class ItemFrameMovements(ItemFrameBase):
         for col in self.curr_entry_dict.get("date", []):
             if not re.match(r'^\d{4}-\d{2}-\d{2}$', self.entries_al[col].get()):
                 messagebox.showwarning("Chyba", "Datum nákupu musí být ve formátu YYYY-MM-DD.")
-                self.entries_al['Datum_nakupu'].focus()
+                self.entries_al[col].focus()
                 return
             
         self.calculate_before_save_to_audit_log()
-        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names, self.values_to_audit_log)
+        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[:-1], self.values_to_audit_log[:-1])
         if not success:
             return
         self.calculate_before_save_to_sklad()
@@ -1332,20 +1342,18 @@ class ItemFrameMovements(ItemFrameBase):
         Tato metoda upraví hodnoty pro změnu množství, jednotkovou cenu a celkovou cenu operace,
         a také aktualizuje nové množství na skladě. Výsledné hodnoty jsou připraveny k uložení do audit logu.
         """
-        quantity_change = int(self.entries_al['Zmena_mnozstvi'].get())
-        unit_price = float(self.entries_al['Jednotkova_cena_EUR'].get())
-        quantity = int(self.entries_al['Mnozstvi_ks_m_l'].get())
-
+        self.new_unit_price = float(self.entries_al['Jednotkova_cena_EUR'].get())
+        
         if self.action == 'vydej': 
-            quantity_change = -quantity_change
-        total_price = unit_price * quantity_change
-        new_quantity = quantity + quantity_change
+            self.quantity_change = -self.quantity_change
+        self.total_price = self.new_unit_price * self.quantity_change
+        self.new_quantity = self.quantity + self.quantity_change
 
         self.values = {col: entry_al.get() for col, entry_al in self.entries_al.items()}
         self.values['Cas_operace'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")    
-        self.values['Zmena_mnozstvi'] = str(quantity_change)
-        self.values['Celkova_cena_EUR'] = str(total_price)
-        self.values['Mnozstvi_ks_m_l'] = str(new_quantity)
+        self.values['Zmena_mnozstvi'] = self.quantity_change
+        self.values['Celkova_cena_EUR'] = self.total_price
+        self.values['Mnozstvi_ks_m_l'] = self.new_quantity
         
         self.values_to_audit_log = [self.values[col] for col in self.audit_log_col_names]
 
@@ -1357,23 +1365,16 @@ class ItemFrameMovements(ItemFrameBase):
         Výpočet nové celkové ceny a průměrné jednotkové ceny pro příjem a aktualizace celkové ceny pro výdej.
         Změny jsou reflektovány ve slovníku `self.values`, který je poté použit pro aktualizaci záznamu v databázi.
         """
-        quantity_change = int(self.values['Zmena_mnozstvi'])
-        new_quantity = int(self.values['Mnozstvi_ks_m_l'])
-        new_unit_price = float(self.values['Jednotkova_cena_EUR'])
-
         if self.action == 'prijem':
             if self.actual_quantity > 0:
-                self.actual_quantity = int(self.actual_quantity)
-                self.actual_unit_price = float(self.actual_unit_price)
-                new_total_price = round(self.actual_quantity * self.actual_unit_price + quantity_change * new_unit_price, 1)
-                average_unit_price = round(new_total_price / (self.actual_quantity + quantity_change), 1)
-                self.values['Celkova_cena_EUR'] = str(new_total_price)
-                self.values['Jednotkova_cena_EUR'] = str(average_unit_price)
+                new_total_price = round(self.actual_quantity*self.actual_unit_price+self.quantity_change*self.new_unit_price, 1)
+                average_unit_price = round(new_total_price / (self.actual_quantity + self.quantity_change), 1)
+                self.values['Celkova_cena_EUR'] = new_total_price
+                self.values['Jednotkova_cena_EUR'] = average_unit_price
             tuple_values_to_save = ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
                                     'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka')
-        elif self.action == 'vydej':
-            new_total_price = round(self.new_quantity * self.actual_unit_price, 1)
-            self.values['Celkova_cena_EUR'] = str(new_total_price)
+        elif self.action == 'vydej': 
+            self.values['Celkova_cena_EUR'] = round(self.new_quantity * self.actual_unit_price, 1)
             tuple_values_to_save = ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR')
 
         self.values_to_sklad = {col: self.values[col] for col in tuple_values_to_save if col in self.values}
