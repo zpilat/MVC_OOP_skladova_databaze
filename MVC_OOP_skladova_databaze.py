@@ -878,11 +878,11 @@ class ItemFrameBase:
 
         :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu.
         """
-        self.top_frame = tk.Frame(self.show_frame)
+        self.top_frame = tk.Frame(self.show_frame, borderwidth=2, relief="groove")
         self.top_frame.pack(side=tk.TOP, fill=tk.X)     
-        self.left_frame = tk.Frame(self.top_frame, borderwidth=2)
+        self.left_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
-        self.right_frame = tk.Frame(self.top_frame, borderwidth=2)
+        self.right_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
         self.bottom_frame = tk.Frame(self.show_frame)
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
@@ -953,7 +953,57 @@ class ItemFrameBase:
             return
             
         self.controller.show_data(self.current_table)
-        
+
+    def show_for_editing(self):
+        """
+        Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame pro editaci údajú.
+        Název položky je v title_frame, zbylé informace v show_frame
+        """        
+        self.entries = {}
+        self.checkbutton_states = {}
+                  
+        for index, col in enumerate(self.col_names):
+            if col in self.check_columns:
+                frame = tk.Frame(self.right_frame)
+                if self.item_values:
+                    self.checkbutton_states[col] = tk.BooleanVar(value=self.item_values[index] == 1)
+                else:
+                    self.checkbutton_states[col] = tk.BooleanVar(value=True) if col == 'Ucetnictvi' else tk.BooleanVar(value=False)
+                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
+                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
+                    checkbutton.config(borderwidth=3, relief="groove")
+                checkbutton.pack(side=tk.LEFT, padx=5)
+            else:
+                frame = tk.Frame(self.left_frame)
+                label = tk.Label(frame, text=self.tab2hum[col], width=12)
+                start_value = self.item_values[index] if self.item_values else ""
+                match col:                          
+                    case 'Min_Mnozstvi_ks':
+                        entry = tk.Spinbox(frame, width=32, from_=0, to='infinity')
+                        if self.item_values:
+                            entry.delete(0, "end")
+                            entry.insert(0, self.item_values[index])                
+                    case 'Jednotky':
+                        entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
+                        entry.set(start_value)                         
+                    case 'Dodavatel' if self.current_table=='sklad':
+                        entry = ttk.Combobox(frame, width=31, values=self.suppliers)
+                        entry.set(start_value)
+                    case _:
+                        entry = tk.Entry(frame, width=34)
+                        if self.item_values:
+                            entry.insert(0, self.item_values[index])                                              
+                label.pack(side=tk.LEFT, pady=6)
+                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                self.entries[col] = entry
+                if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
+                if col in self.curr_entry_dict.get("insert", []): entry.insert(0, self.curr_entry_dict["insert"][col])
+                if col in self.curr_entry_dict.get("read_only", []): entry.config(state='readonly')
+                if col in self.curr_entry_dict.get("pack_forget", []):
+                    label.pack_forget()
+                    entry.pack_forget()
+            frame.pack(fill=tk.X)        
+
 
 class ItemFrameShow(ItemFrameBase):
     """
@@ -1055,43 +1105,7 @@ class ItemFrameEdit(ItemFrameBase):
         self.action = 'edit'
         self.update_frames(action=self.action)                
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
-        self.checkbutton_states = {}
-        self.entries = {}
-
-        for index, col in enumerate(self.col_names):           
-            if col in self.check_columns:
-                frame = tk.Frame(self.right_frame)
-                is_checked = self.item_values[index] == 1
-                self.checkbutton_states[col] = tk.BooleanVar(value=is_checked)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.pack(side=tk.LEFT, padx=5)
-            else:
-                frame = tk.Frame(self.left_frame)
-                label = tk.Label(frame, text=self.tab2hum[col], width=12)
-                match col:
-                    case 'Min_Mnozstvi_ks':
-                        entry = tk.Spinbox(frame, width=33, from_=0, to='infinity')
-                        if self.item_values:
-                            entry.delete(0, "end")
-                            entry.insert(0, self.item_values[index])                
-                    case 'Jednotky':
-                        entry = ttk.Combobox(frame, width=32, values=self.unit_tuple)
-                        entry.set(self.item_values[index])                           
-                    case 'Dodavatel' if self.current_table=='sklad':
-                        entry = ttk.Combobox(frame, width=32, values=self.suppliers)
-                        entry.set(self.item_values[index])                  
-                    case _:
-                        entry = tk.Entry(frame, width=35)
-                        if self.item_values:
-                            entry.insert(0, self.item_values[index])           
-                label.pack(side=tk.LEFT, pady=6)
-                entry.pack(side=tk.RIGHT, padx=2, pady=6)
-                self.entries[col] = entry
-                if col in self.curr_entry_dict["read_only"]:
-                    entry.config(state='readonly') 
-            frame.pack(fill=tk.X)
+        self.show_for_editing()
 
 
 class ItemFrameAdd(ItemFrameBase):
@@ -1122,7 +1136,7 @@ class ItemFrameAdd(ItemFrameBase):
                                                      'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
                                      "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
                                                 'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0'},
-                                     "mandatory": ('Nazev_dilu', 'Dodavatel'),
+                                     "mandatory": ('Nazev_dilu', 'Jednotky'),
                                      },                                 
                            "dodavatele": {"title": "VYTVOŘENÍ DODAVATELE",
                                           "read_only": ('id',),
@@ -1139,46 +1153,13 @@ class ItemFrameAdd(ItemFrameBase):
         """
         self.new_id = new_id
         self.new_interne_cislo = new_interne_cislo
-        self.entries = {}
-        self.checkbutton_states = {}
+        self.item_values = None
         self.init_curr_dict()
         self.initialize_title(add_name_label=False)
         self.action = 'add'
         self.update_frames(action=self.action)
+        self.show_for_editing()
                    
-        for index, col in enumerate(self.col_names):
-            if col in self.check_columns:
-                frame = tk.Frame(self.right_frame)
-                self.checkbutton_states[col] = tk.BooleanVar(value=True) if col == 'Ucetnictvi' else tk.BooleanVar(value=False)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.pack(side=tk.LEFT, padx=5)
-            else:
-                frame = tk.Frame(self.left_frame)
-                label = tk.Label(frame, text=self.tab2hum[col], width=12)
-                match col:
-                    case 'Min_Mnozstvi_ks' if self.current_table=="sklad":
-                        entry = tk.Spinbox(frame, width=33, from_=0, to='infinity')
-                    case 'Jednotky' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=32, values=self.unit_tuple)             
-                        entry.set(self.unit_tuple[0])
-                    case 'Dodavatel' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=32, values=self.suppliers)             
-                        entry.set("")
-                    case _:
-                        entry = tk.Entry(frame, width=35)                                                
-                label.pack(side=tk.LEFT, pady=6)
-                entry.pack(side=tk.RIGHT, padx=2, pady=6)
-                self.entries[col] = entry
-                if col in self.curr_entry_dict["mandatory"]: entry.config(background='yellow') 
-                if col in self.curr_entry_dict["insert"]: entry.insert(0, self.curr_entry_dict["insert"][col])
-                if col in self.curr_entry_dict["read_only"]: entry.config(state='readonly')
-                if col in self.curr_entry_dict["pack_forget"]:
-                    label.pack_forget()
-                    entry.pack_forget()
-            frame.pack(fill=tk.X)
-         
 
 class ItemFrameMovements(ItemFrameBase):
     """
@@ -1202,7 +1183,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.action_dict = {
             "sklad": {"prijem": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni',
                                                  'Datum_vydeje', 'Cas_operace', 'id'),
-                                 "mandatory": ('Zmena_mnozstvi', 'Cislo_objednavky'),
+                                 "mandatory": ('Zmena_mnozstvi', 'Dodavatel', 'Cislo_objednavky'),
                                  "date":('Datum_nakupu',),
                                  "pos_real": ('Jednotkova_cena_EUR',),
                                  "pos_integer":('Zmena_mnozstvi',),
@@ -1265,15 +1246,15 @@ class ItemFrameMovements(ItemFrameBase):
             label = tk.Label(self.left_frame, text=self.tab2hum[col], width=20)
             label.grid(row=idx, column=0, sticky="nsew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
-                entry_al = ttk.Combobox(self.left_frame, width=32, values=self.devices)             
+                entry_al = ttk.Combobox(self.left_frame, width=37, values=self.devices)             
                 entry_al.set("")
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             elif col == 'Dodavatel':
-                entry_al = ttk.Combobox(self.left_frame, width=32, values=self.suppliers)
+                entry_al = ttk.Combobox(self.left_frame, width=37, values=self.suppliers)
                 entry_al.set(self.item_values[index])
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             else:
-                entry_al = tk.Entry(self.left_frame, width=35)                        
+                entry_al = tk.Entry(self.left_frame, width=40)                        
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
                 
             if col in self.curr_entry_dict["mandatory"]: entry_al.config(background='yellow')
