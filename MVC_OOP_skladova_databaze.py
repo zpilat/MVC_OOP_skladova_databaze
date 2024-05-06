@@ -110,7 +110,7 @@ class Model:
         """
         set_clause = ', '.join([f"`{key}` = ?" for key in updated_values.keys()])
         values = list(updated_values.values())
-        values.append(id_num)  # Přidání hodnoty ID na konec seznamu hodnot pro přípravu SQL dotazu
+        values.append(id_num)
         sql = f"UPDATE `{table}` SET {set_clause} WHERE `{id_col_name}` = ?"
 
         self.cursor.execute(sql, values)
@@ -365,24 +365,24 @@ class View:
         :return: Přefiltrovaná data.
         """ 
         search_query = self.search_entry.get()
-        if search_query: # dle hodnoty v search entry
+        if search_query:
             filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
         else:
             filtered_data = data
         
-        if filter_low_stock: # dle parametru low stock
+        if filter_low_stock:
             filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
 
-        if self.current_table == "audit_log": # dle vybrané položky comboboxu příjem / výdej
+        if self.current_table == "audit_log":
             if self.selected_option == "PŘÍJEM":
                 filtered_data = [row for row in filtered_data if row[8] == "PŘÍJEM"]
             elif self.selected_option == "VÝDEJ":
                 filtered_data = [row for row in filtered_data if row[8] == "VÝDEJ"]
 
-        if self.start_date: # dle rozmezí datumů v date entry       
+        if self.start_date:       
             filtered_data = [row for row in filtered_data if self.start_date <= (row[12] or row[13]) <= self.end_date]
             
-        if any(value.get() for value in self.filter_columns.values()): # dle zaškrtnutých check buttonů
+        if any(value.get() for value in self.filter_columns.values()):
             filtered_data_temp = []
             for row in filtered_data:
                 include_row = True  
@@ -581,7 +581,7 @@ class SkladView(View):
 
     def delete_row(self):
         """
-        Vymaže označenou položku, pokud je nulový stav.
+        Vymaže označenou položku, pokud je to poslední zadaná položka a je nulový stav.
         """
         try:
             self.selected_item = self.tree.selection()[0]
@@ -735,6 +735,7 @@ class AuditLogView(View):
         """
         self.selected_option = self.operation_combobox.get()         
         self.controller.show_data(self.current_table)
+
 
     def col_parameters(self):
         """
@@ -1050,7 +1051,8 @@ class ItemFrameEdit(ItemFrameBase):
         self.item_values = item_values
         self.init_curr_dict()        
         self.initialize_title()
-        self.update_frames(action='edit')                
+        self.action = 'edit'
+        self.update_frames(action=self.action)                
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
         self.checkbutton_states = {}
         self.entries = {}
@@ -1140,7 +1142,8 @@ class ItemFrameAdd(ItemFrameBase):
         self.checkbutton_states = {}
         self.init_curr_dict()
         self.initialize_title(add_name_label=False)
-        self.update_frames(action='add')
+        self.action = 'add'
+        self.update_frames(action=self.action)
                    
         for index, col in enumerate(self.col_names):
             if col in self.check_columns:
@@ -1203,7 +1206,7 @@ class ItemFrameMovements(ItemFrameBase):
                                  "pos_real": ('Jednotkova_cena_EUR',),
                                  "pos_integer":('Zmena_mnozstvi',),
                                  "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.logged_user,
-                                                  'Datum_nakupu': self.actual_date, 'Datum_vydeje': ""},
+                                                  'Datum_nakupu': self.actual_date, 'Datum_vydeje': "",},
                                  },
                       "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
                                                 'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
@@ -1221,7 +1224,7 @@ class ItemFrameMovements(ItemFrameBase):
                       "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
                                     'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni', 'Dodavatel'),
                       "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano'
+                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano',
                                             'Poznamka', 'Nazev_dilu'),
                       },
             }  
@@ -1251,8 +1254,8 @@ class ItemFrameMovements(ItemFrameBase):
         self.actual_unit_price = float(self.item_values[self.curr_table_config["unit_price_col"]])
        
         if self.action=='vydej' and self.actual_quantity==0:
+            self.current_view_instance.show_selected_item()
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
-            self.current_view_instance.show_selected_item
             return
         
         for idx, col in enumerate(self.audit_log_col_names):
@@ -1370,7 +1373,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.values['Mnozstvi_ks_m_l'] = self.new_quantity
         
         self.values_to_audit_log = [self.values[col] for col in self.audit_log_col_names]
-
+        
 
     def calculate_before_save_to_sklad(self):
         """
@@ -1382,7 +1385,7 @@ class ItemFrameMovements(ItemFrameBase):
         if self.action == 'prijem':
             if self.actual_quantity > 0:
                 new_total_price = round(self.actual_quantity*self.actual_unit_price+self.quantity_change*self.new_unit_price, 1)
-                average_unit_price = round(new_total_price / (self.actual_quantity + self.quantity_change), 1)
+                average_unit_price = round(new_total_price / (self.actual_quantity + self.quantity_change), 2)
                 self.values['Celkova_cena_EUR'] = new_total_price
                 self.values['Jednotkova_cena_EUR'] = average_unit_price
             tuple_values_to_save = ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
