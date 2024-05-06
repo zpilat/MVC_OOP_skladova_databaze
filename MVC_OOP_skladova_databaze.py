@@ -220,7 +220,8 @@ class View:
         self.search_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
         self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
         self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)           
-        self.item_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
+        self.item_frame = tk.Frame(self.frame, width=435, borderwidth=2, relief="groove")
+        self.item_frame.pack_propagate(False)
         self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
 
 
@@ -1071,18 +1072,18 @@ class ItemFrameEdit(ItemFrameBase):
                 label = tk.Label(frame, text=self.tab2hum[col], width=12)
                 match col:
                     case 'Min_Mnozstvi_ks':
-                        entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
+                        entry = tk.Spinbox(frame, width=33, from_=0, to='infinity')
                         if self.item_values:
                             entry.delete(0, "end")
                             entry.insert(0, self.item_values[index])                
                     case 'Jednotky':
-                        entry = ttk.Combobox(frame, width=27, values=self.unit_tuple)
+                        entry = ttk.Combobox(frame, width=32, values=self.unit_tuple)
                         entry.set(self.item_values[index])                           
                     case 'Dodavatel' if self.current_table=='sklad':
-                        entry = ttk.Combobox(frame, width=27, values=self.suppliers)
+                        entry = ttk.Combobox(frame, width=32, values=self.suppliers)
                         entry.set(self.item_values[index])                  
                     case _:
-                        entry = tk.Entry(frame, width=30)
+                        entry = tk.Entry(frame, width=35)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])           
                 label.pack(side=tk.LEFT, pady=6)
@@ -1158,15 +1159,15 @@ class ItemFrameAdd(ItemFrameBase):
                 label = tk.Label(frame, text=self.tab2hum[col], width=12)
                 match col:
                     case 'Min_Mnozstvi_ks' if self.current_table=="sklad":
-                        entry = tk.Spinbox(frame, width=28, from_=0, to='infinity')
+                        entry = tk.Spinbox(frame, width=33, from_=0, to='infinity')
                     case 'Jednotky' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=27, values=self.unit_tuple)             
+                        entry = ttk.Combobox(frame, width=32, values=self.unit_tuple)             
                         entry.set(self.unit_tuple[0])
                     case 'Dodavatel' if self.current_table=="sklad":
-                        entry = ttk.Combobox(frame, width=27, values=self.suppliers)             
+                        entry = ttk.Combobox(frame, width=32, values=self.suppliers)             
                         entry.set("")
                     case _:
-                        entry = tk.Entry(frame, width=30)                                                
+                        entry = tk.Entry(frame, width=35)                                                
                 label.pack(side=tk.LEFT, pady=6)
                 entry.pack(side=tk.RIGHT, padx=2, pady=6)
                 self.entries[col] = entry
@@ -1261,18 +1262,18 @@ class ItemFrameMovements(ItemFrameBase):
         for idx, col in enumerate(self.audit_log_col_names):
             if col in self.col_names:
                 index = self.col_names.index(col) 
-            label = tk.Label(self.left_frame, text=self.tab2hum[col], width=12)
+            label = tk.Label(self.left_frame, text=self.tab2hum[col], width=20)
             label.grid(row=idx, column=0, sticky="nsew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
-                entry_al = ttk.Combobox(self.left_frame, width=26, values=self.devices)             
+                entry_al = ttk.Combobox(self.left_frame, width=32, values=self.devices)             
                 entry_al.set("")
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             elif col == 'Dodavatel':
-                entry_al = ttk.Combobox(self.left_frame, width=26, values=self.suppliers)
+                entry_al = ttk.Combobox(self.left_frame, width=32, values=self.suppliers)
                 entry_al.set(self.item_values[index])
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             else:
-                entry_al = tk.Entry(self.left_frame, width=28)                        
+                entry_al = tk.Entry(self.left_frame, width=35)                        
                 entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
                 
             if col in self.curr_entry_dict["mandatory"]: entry_al.config(background='yellow')
