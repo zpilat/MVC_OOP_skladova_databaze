@@ -146,7 +146,7 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - vývojová verze MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.50 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -165,7 +165,7 @@ class View:
                         'Jednotkova_cena_EUR': 'EUR/jednotka', 'Celkova_cena_EUR': 'Celkem EUR',
                         'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
                         'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
-                        'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID', 'Kontakt': 'Kontaktní osoba'}
+                        'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID', 'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail'}
 
         
     def customize_ui(self):
@@ -881,7 +881,7 @@ class ItemFrameBase:
         self.top_frame = tk.Frame(self.show_frame, borderwidth=2, relief="groove")
         self.top_frame.pack(side=tk.TOP, fill=tk.X)     
         self.left_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
-        self.left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
         self.right_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
         self.bottom_frame = tk.Frame(self.show_frame)
@@ -1070,9 +1070,11 @@ class ItemFrameEdit(ItemFrameBase):
         
         :param: Inicializovány v rodičovské třídě.
         """
-        self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-
+        self.current_view_instance = current_view_instance
+        self.action = 'edit'
+        self.update_frames(action=self.action)         
+        
        
     def init_curr_dict(self):
         """
@@ -1101,9 +1103,7 @@ class ItemFrameEdit(ItemFrameBase):
         """
         self.item_values = item_values
         self.init_curr_dict()        
-        self.initialize_title()
-        self.action = 'edit'
-        self.update_frames(action=self.action)                
+        self.initialize_title()       
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
         self.show_for_editing()
 
@@ -1118,9 +1118,12 @@ class ItemFrameAdd(ItemFrameBase):
         
         :param: Inicializovány v rodičovské třídě.
         """
-        self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        self.current_view_instance = current_view_instance
         self.id_num = None
+        self.item_values = None
+        self.action = 'add'
+        self.update_frames(action=self.action)        
 
 
     def init_curr_dict(self):
@@ -1147,17 +1150,14 @@ class ItemFrameAdd(ItemFrameBase):
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
-    def add_item(self, new_id, new_interne_cislo):
+    def add_item(self, new_id, new_interne_cislo, item_values=None):
         """
         Metoda pro přidání nové položky do aktuální tabulky.
         """
         self.new_id = new_id
         self.new_interne_cislo = new_interne_cislo
-        self.item_values = None
         self.init_curr_dict()
         self.initialize_title(add_name_label=False)
-        self.action = 'add'
-        self.update_frames(action=self.action)
         self.show_for_editing()
                    
 
@@ -1171,9 +1171,9 @@ class ItemFrameMovements(ItemFrameBase):
         
         :param: Inicializovány v rodičovské třídě.
         """
-        self.current_view_instance = current_view_instance
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
-
+        self.current_view_instance = current_view_instance
+        
        
     def init_curr_dict(self):
         """
@@ -1248,20 +1248,22 @@ class ItemFrameMovements(ItemFrameBase):
             if col == 'Pouzite_zarizeni':
                 entry_al = ttk.Combobox(self.left_frame, width=37, values=self.devices)             
                 entry_al.set("")
-                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             elif col == 'Dodavatel':
                 entry_al = ttk.Combobox(self.left_frame, width=37, values=self.suppliers)
                 entry_al.set(self.item_values[index])
-                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
             else:
                 entry_al = tk.Entry(self.left_frame, width=40)                        
-                entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
+            entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
                 
-            if col in self.curr_entry_dict["mandatory"]: entry_al.config(background='yellow')
-            if col in self.curr_entry_dict["insert_item_value"]: entry_al.insert(0, self.item_values[index])        
-            if col in self.curr_entry_dict["actual_value"]: entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
-            if col in self.curr_entry_dict["read_only"]: entry_al.config(state='readonly')                
-            if col in self.curr_entry_dict["grid_forget"]:
+            if col in self.curr_entry_dict.get("mandatory",[]):
+                entry_al.config(background='yellow')
+            if col in self.curr_entry_dict.get("insert_item_value",[]):
+                entry_al.insert(0, self.item_values[index])        
+            if col in self.curr_entry_dict.get("actual_value",[]):
+                entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
+            if col in self.curr_entry_dict.get("read_only",[]):
+                entry_al.config(state='readonly')                
+            if col in self.curr_entry_dict.get("grid_forget",[]):
                 label.grid_forget()
                 entry_al.grid_forget()
             self.entries_al[col] = entry_al
