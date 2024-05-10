@@ -168,7 +168,7 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.52 MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.53 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -272,16 +272,11 @@ class View:
         """
         self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
         for col in self.check_columns:
+            checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
+                                         onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
+            checkbutton.pack(side='left', padx=5, pady=5)
             if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):
-                col_name = self.tab2hum[col]
-                checkbutton = tk.Checkbutton(self.search_frame, text=col_name, borderwidth=3, relief="groove",
-                                             variable=tk.BooleanVar(), onvalue=1, offvalue=0,
-                                             command=lambda col=col: self.toggle_filter(col))
-                checkbutton.pack(side='left', padx=5, pady=5)
-            else:
-                checkbutton = tk.Checkbutton(self.search_frame, text=col, variable=tk.BooleanVar(),
-                                             onvalue=1, offvalue=0, command=lambda col=col: self.toggle_filter(col))
-                checkbutton.pack(side='left', padx=3, pady=5)
+                checkbutton.config(borderwidth=3, relief="groove")
 
 
     def initialize_treeview(self, tree_frame):
@@ -431,17 +426,28 @@ class View:
         return filtered_data
 
 
-    def toggle_filter(self, col):
+    def toggle_filter(self, selected_col):
         """
-        Metoda pro filtraci dat v tabulce podle zaškrtnutých check buttonů
-        Přepnutí stavu filtru pro daný sloupec pro tk.Boolean.Var
-        a zobrazení přefiltrovaných dat.
+        Metoda pro filtraci dat v tabulce podle zaškrtnutých check buttonů.
+        Tato metoda umožňuje zaškrtnout nezávisle checkbuttony ve skupině 'special_group' 
+        (Ucetnictvi, Kriticky_dil), zatímco pro ostatní checkbuttony (zařízení) zajišťuje,
+        že aktivní může být maximálně jeden z nich. Při aktivaci jednoho z "normálních" 
+        checkbuttonů jsou všechny ostatní "normální" checkbuttony odškrtnuty. Metoda aktualizuje 
+        stav filtru pro daný sloupec a zobrazuje data podle nově aplikovaného filtru.
 
-        :param col: název sloupce (check buttonu), který byl zašrtnut / odškrtnut
+        :param selected_col: Název sloupce (check buttonu), který byl zaškrtnut nebo odškrtnut. 
+                             Podle tohoto sloupce se určuje, který filtr bude aplikován nebo odstraněn.
         """
-        current_value = self.filter_columns[col].get()
-        self.filter_columns[col].set(not current_value)
+        status_of_chb = self.filter_columns[selected_col].get()
+        special_group = {'Ucetnictvi', 'Kriticky_dil'}
+
+        if status_of_chb and selected_col not in special_group:
+            for col in self.filter_columns:
+                if col not in special_group and col != selected_col:
+                    self.filter_columns[col].set(False)
+                    
         self.controller.show_data(self.current_table)
+            
 
 
     def on_column_click(self, clicked_col):
