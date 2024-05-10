@@ -168,7 +168,7 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.51 MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.52 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -185,8 +185,9 @@ class View:
                         'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu', 'Cislo_objednavky': 'Objednávka',
                         'Jednotkova_cena_EUR': 'EUR/jednotka', 'Celkova_cena_EUR': 'Celkem EUR',
                         'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
-                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace', 'Datum_vydeje': 'Datum výdeje',
-                        'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID', 'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail'}
+                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
+                        'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
+                        'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon'}
 
         
     def customize_ui(self):
@@ -1183,7 +1184,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.action_dict = {
             "sklad": {"prijem": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni',
                                                  'Datum_vydeje', 'Cas_operace', 'id'),
-                                 "mandatory": ('Zmena_mnozstvi', 'Dodavatel', 'Cislo_objednavky'),
+                                 "mandatory": ('Zmena_mnozstvi', 'Umisteni', 'Dodavatel', 'Cislo_objednavky'),
                                  "date":('Datum_nakupu',),
                                  "pos_real": ('Jednotkova_cena_EUR',),
                                  "pos_integer":('Zmena_mnozstvi',),
@@ -1194,7 +1195,7 @@ class ItemFrameMovements(ItemFrameBase):
                                  },
                       "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
                                                 'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
-                                "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni'),
+                                "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni', 'Umisteni'),
                                 "date":('Datum_vydeje',),
                                 "pos_integer":('Zmena_mnozstvi',),
                                 "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.logged_user,
@@ -1272,6 +1273,17 @@ class ItemFrameMovements(ItemFrameBase):
             self.entries_al[col] = entry_al
 
 
+    def show_warning(self, col, warning):
+        """
+        Metoda pro vypsání varování a zaměření pozornosti na vstupní pole s chybným zadáním.
+
+        :parames col: název nesprávně zadané položky.
+        :parames warning: text vypsaného varování.
+        """
+        messagebox.showwarning("Chyba", warning)
+        self.entries_al[col].focus()
+
+
     def check_before_save(self, action): 
         """
         Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
@@ -1282,23 +1294,20 @@ class ItemFrameMovements(ItemFrameBase):
         
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries_al[col].get():
-                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
-                self.entries_al[col].focus()
+                self.show_warning(col, f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
                 return
             
         for col in self.curr_entry_dict.get("pos_integer", []):
             entry_val = self.entries_al[col].get()
             if not entry_val.isdigit() or int(entry_val) <= 0:
-                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné celé číslo.")
-                self.entries_al[col].focus()
+                self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné celé číslo.")
                 return
 
         self.quantity_change = int(self.entries_al['Zmena_mnozstvi'].get())
         self.quantity = int(self.entries_al['Mnozstvi_ks_m_l'].get())
 
         if self.action=='vydej' and self.quantity_change > self.quantity:
-                messagebox.showwarning("Chyba", "Vydávané množství je větší než množství na skladě.")
-                self.entries_al['Zmena_mnozstvi'].focus()
+                self.show_warning('Zmena_mnozstvi', "Vydávané množství je větší než množství na skladě.")
                 return
 
         for col in self.curr_entry_dict.get("pos_real", []):
@@ -1306,25 +1315,21 @@ class ItemFrameMovements(ItemFrameBase):
             try:
                 float_entry_val = float(entry_val)
                 if float_entry_val <= 0:
-                    messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
-                    self.entries_al[col].focus()
+                    self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
                     return
             except ValueError:
-                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
-                self.entries_al[col].focus()
+                self.show_warning(col, f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
                 return
 
         for col in self.curr_entry_dict.get("date", []):
             date_str = self.entries_al[col].get()
             if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-                messagebox.showwarning("Chyba", "Datum nákupu musí být ve formátu RRRR-MM-DD.")
-                self.entries_al[col].focus()
+                self.show_warning(col, "Datum nákupu musí být ve formátu RRRR-MM-DD.")
                 return
             try:
                 datetime.strptime(date_str, "%Y-%m-%d")
             except ValueError:
-                messagebox.showwarning("Chyba", f"Neplatné datum: {date_str}. Zadejte prosím platné datum.")
-                self.entries_al[col].focus()
+                self.show_warning(col, f"Neplatné datum: {date_str}. Zadejte prosím platné datum.")
                 return
             
         self.calculate_before_save_to_audit_log() 
@@ -1335,6 +1340,7 @@ class ItemFrameMovements(ItemFrameBase):
         success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[:-1], self.values_to_audit_log[:-1])
         if not success:
             return
+        messagebox.showinfo("Informace", f"Úspěšně proběhl {self.title.lower()} a zápis do audit logu!")
 
         self.controller.show_data(self.current_table)
         
