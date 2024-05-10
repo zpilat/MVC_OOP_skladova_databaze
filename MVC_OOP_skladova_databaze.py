@@ -138,6 +138,28 @@ class View:
     """
     Třída View se stará o zobrazení uživatelského rozhraní.
     """
+    table_config = {"sklad": {"check_columns": ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
+                                                'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
+                                                'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3'),
+                              "hidden_columns": ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
+                                                 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
+                                                 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', 'Objednano'),
+                              "id_col": 2,
+                              "id_col_name": 'Evidencni_cislo',
+                              },
+                    "audit_log": {"check_columns": ('Ucetnictvi',),
+                                  "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace', 'id'),
+                                  "id_col": 20,
+                                  "id_col_name": 'id',
+                                  },
+                    "dodavatele": {"check_columns": (),
+                                   "hidden_columns": (),
+                                   "id_col": 0,
+                                   "id_col_name": 'id',
+                                   },
+                    }
+
+
     def __init__(self, root, controller):
         """
         Inicializace GUI a nastavení hlavního okna.
@@ -146,13 +168,12 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.50 MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.51 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
         self.id_col_name = None
-        self.item_frame_show = None
-            
+        self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
                         'Nazev_dilu': 'Název dílu', 'Mnozstvi_ks_m_l': 'Akt. množství', 'Jednotky':'Jedn.',
@@ -172,6 +193,11 @@ class View:
         """
         Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
         """
+        self.curr_table_config = View.table_config[self.current_table]
+        self.check_columns = self.curr_table_config["check_columns"]
+        self.hidden_columns = self.curr_table_config["hidden_columns"]
+        self.id_col = self.curr_table_config["id_col"]
+        self.id_col_name = self.curr_table_config["id_col_name"]     
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
@@ -183,8 +209,11 @@ class View:
         self.additional_gui_elements()
         self.selected_option = "VŠE"
         self.start_date = None
-        self.tree.tag_configure('low_stock', background='#ffcccc', foreground='white')
+        self.tree.tag_configure('evenrow', background='#FFFFFF')
+        self.tree.tag_configure('oddrow', background='#F5F5F5')
+        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)   
+        self.setup_columns(self.col_parameters())
 
 
     def initialize_menu(self):
@@ -340,7 +369,7 @@ class View:
 
         sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
 
-        for row in sorted_data:
+        for idx, row in enumerate(sorted_data):
             row_converted = list(row)
             for index, col in enumerate(self.col_names):
                 if col in self.check_columns:
@@ -348,9 +377,10 @@ class View:
 
             item_id = self.tree.insert('', tk.END, values=row_converted)
 
-            if self.current_table == 'sklad':                
-                if int(row[7]) < int(row[4]):
-                    self.tree.item(item_id, tags=('low_stock',))      
+            stripe_tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            if self.current_table == 'sklad' and int(row[7]) < int(row[4]):
+                self.tree.item(item_id, tags=(stripe_tag, 'low_stock',))
+            else: self.tree.item(item_id, tags=(stripe_tag,))
 
         self.mark_first_item()
         
@@ -520,18 +550,7 @@ class SkladView(View):
         super().__init__(root, controller)
         self.current_table = 'sklad'
         self.col_names = col_names
-        self.check_columns = ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
-                              'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
-                              'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3')
-        self.hidden_columns = self.check_columns + ('Objednano',)
-
         self.customize_ui() 
-
-        col_params = self.col_parameters()
-        self.setup_columns(col_params)
-
-        self.id_col = 2  # Výchozí sloupec pro třídění pro sklad podle sloupce 2 pro Evidenční číslo
-        self.id_col_name = 'Evidencni_cislo'
 
 
     def spec_menus(self):
@@ -642,16 +661,7 @@ class AuditLogView(View):
         super().__init__(root, controller)
         self.current_table = 'audit_log'
         self.col_names = col_names   
-        self.hidden_columns = ('Objednano', 'Poznamka', 'Cas_operace', 'id')
-        self.check_columns = ('Ucetnictvi',)
-
         self.customize_ui()
-       
-        col_params = self.col_parameters()
-        self.setup_columns(col_params)
-
-        self.id_col = 20  # Výchozí sloupec pro řazení pro audit_log sloupec 20 id  
-        self.id_col_name = 'id'
 
         
     def spec_menus(self):
@@ -775,17 +785,7 @@ class DodavateleView(View):
         super().__init__(root, controller)
         self.current_table = 'dodavatele'
         self.col_names = col_names
-
-        self.check_columns = ()
-        self.hidden_columns = ()
-        
-        self.customize_ui()
-       
-        col_params = self.col_parameters()
-        self.setup_columns(col_params)
-
-        self.id_col = 0  # Výchozí sloupec pro řazení pro dodavatele sloupec 0 pro id
-        self.id_col_name = 'id'        
+        self.customize_ui()   
 
 
     def spec_menus(self):
@@ -993,8 +993,8 @@ class ItemFrameBase:
                         entry = tk.Entry(frame, width=34)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])                                              
-                label.pack(side=tk.LEFT, pady=6)
-                entry.pack(side=tk.RIGHT, padx=2, pady=6)
+                label.pack(side=tk.LEFT)
+                entry.pack(side=tk.LEFT, padx=2, pady=3)
                 self.entries[col] = entry
                 if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
                 if col in self.curr_entry_dict.get("insert", []): entry.insert(0, self.curr_entry_dict["insert"][col])
@@ -1150,7 +1150,7 @@ class ItemFrameAdd(ItemFrameBase):
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
-    def add_item(self, new_id, new_interne_cislo, item_values=None):
+    def add_item(self, new_id, new_interne_cislo):
         """
         Metoda pro přidání nové položky do aktuální tabulky.
         """
@@ -1189,6 +1189,8 @@ class ItemFrameMovements(ItemFrameBase):
                                  "pos_integer":('Zmena_mnozstvi',),
                                  "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.logged_user,
                                                   'Datum_nakupu': self.actual_date, 'Datum_vydeje': "",},
+                                 "tuple_values_to_save": ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
+                                                          'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka'),
                                  },
                       "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
                                                 'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
@@ -1196,7 +1198,8 @@ class ItemFrameMovements(ItemFrameBase):
                                 "date":('Datum_vydeje',),
                                 "pos_integer":('Zmena_mnozstvi',),
                                 "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.logged_user,
-                                                  'Datum_nakupu': "", 'Datum_vydeje': self.actual_date},                                
+                                                  'Datum_nakupu': "", 'Datum_vydeje': self.actual_date,},
+                                "tuple_values_to_save": ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR'),
                                 },
                       },
             }              
@@ -1324,12 +1327,12 @@ class ItemFrameMovements(ItemFrameBase):
                 self.entries_al[col].focus()
                 return
             
-        self.calculate_before_save_to_audit_log()
-        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[:-1], self.values_to_audit_log[:-1])
-        if not success:
-            return
+        self.calculate_before_save_to_audit_log() 
         self.calculate_before_save_to_sklad()
         success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
+        if not success:
+            return
+        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[:-1], self.values_to_audit_log[:-1])
         if not success:
             return
 
@@ -1372,13 +1375,10 @@ class ItemFrameMovements(ItemFrameBase):
                 average_unit_price = round(new_total_price / (self.actual_quantity + self.quantity_change), 2)
                 self.values['Celkova_cena_EUR'] = new_total_price
                 self.values['Jednotkova_cena_EUR'] = average_unit_price
-            tuple_values_to_save = ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
-                                    'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka')
         elif self.action == 'vydej': 
             self.values['Celkova_cena_EUR'] = round(self.new_quantity * self.actual_unit_price, 1)
-            tuple_values_to_save = ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR')
 
-        self.values_to_sklad = {col: self.values[col] for col in tuple_values_to_save if col in self.values}
+        self.values_to_sklad = {col: self.values[col] for col in self.curr_entry_dict["tuple_values_to_save"] if col in self.values}
 
 
 
