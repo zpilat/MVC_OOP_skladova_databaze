@@ -44,6 +44,22 @@ class Model:
         return self.cursor.fetchall()
 
 
+    def fetch_varianty_data(self):
+        """
+        Načte rozšířená data variant, včetně názvů dílů a dodavatelů z ostatních tabulek.
+        
+        :return: Data variant spolu s názvy dílů a dodavatelů.
+        """
+        query = """
+        SELECT v.*, s.Nazev_dilu, d.Dodavatel
+        FROM varianty v
+        JOIN sklad s ON v.id_sklad = s.Evidencni_cislo
+        JOIN dodavatele d ON v.id_dodavatele = d.id
+        """
+        self.cursor.execute(query)
+        return self.cursor.fetchall()
+
+
     def fetch_item_for_editing(self, table, id_num, id_col_name):
         """
         Získání dat položky pro účely editace na základě ID.
@@ -171,7 +187,7 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.54 MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.60 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -890,6 +906,8 @@ class VariantyView(View):
             match col:          
                 case 'Nazev_varianty':
                     col_params.append({"width": 300, "anchor": "w"})
+                case "Nazev_dilu" | "Dodavatel":
+                    col_params.append({"width": 200, "anchor": "w", "stretch": tk.YES})
                 case _ if col in self.hidden_columns:
                     col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
                 case _:    
@@ -1513,8 +1531,12 @@ class Controller:
         
         :param table: Název tabulky pro zobrazení.
         """
-        data = self.model.fetch_data(table)
-        col_names = self.model.fetch_col_names(table)
+        if table == 'varianty':
+            data = self.model.fetch_varianty_data()
+            col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel"]
+        else:
+            data = self.model.fetch_data(table)
+            col_names = self.model.fetch_col_names(table)
 
         if self.current_view_instance is None:
             self.current_view_instance = SkladView(self.root, self, col_names)
