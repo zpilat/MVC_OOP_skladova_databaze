@@ -187,7 +187,6 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.60 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -288,6 +287,8 @@ class View:
         """
         self.search_entry = tk.Entry(self.search_frame, width=50)
         self.search_entry.pack(side=tk.LEFT)
+        self.search_entry.bind('<Return>', lambda _: self.controller.show_data(self.current_table))
+        self.search_entry.bind("<Escape>", lambda _: self.search_entry.delete(0, tk.END))
         self.search_button = tk.Button(self.search_frame, text="Filtrovat",
                                        command=lambda: self.controller.show_data(self.current_table))
         self.search_button.pack(side=tk.LEFT, padx=5)
@@ -565,17 +566,25 @@ class View:
                                               self.item_frame, self.tab2hum, self.check_columns)
         
 
-    def add_item(self):
+    def add_item(self, table=None):
         """
         Metoda pro přidání nové položky do aktuální tabulky.
-        """      
+        """          
         for widget in self.item_frame.winfo_children():
             widget.destroy()
             
         self.item_frame_show = None
         self.id_num = None
-        self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
-                                 self.item_frame, self.tab2hum, self.check_columns)
+        
+        if table is None:
+            self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
+                                     self.item_frame, self.tab2hum, self.check_columns)
+        elif table == "varianty":
+            id_num = self.table_config["varianty"].get("id_num", [])
+            id_col_name = self.table_config["varianty"].get("id_col_name", [])
+            check_columns = self.table_config["varianty"].get("check_columns", [])
+            self.controller.add_item(table, id_num, id_col_name,
+                                     self.item_frame, self.tab2hum, check_columns)
             
 
 class SkladView(View):
@@ -593,7 +602,8 @@ class SkladView(View):
         super().__init__(root, controller)
         self.current_table = 'sklad'
         self.col_names = col_names
-        self.customize_ui() 
+        self.customize_ui()
+        self.suppliers = self.controller.fetch_suppliers() 
 
 
     def spec_menus(self):
@@ -613,6 +623,9 @@ class SkladView(View):
                 ("Příjem zboží", lambda: self.item_movements(action='prijem')),
                 ("Výdej zboží", lambda: self.item_movements(action='vydej')), 
             ],
+            "Varianty": [
+                ("Přidat variantu", lambda: self.add_item(table="varianty")),
+            ],            
         }
         return specialized_menus
 
@@ -887,8 +900,7 @@ class VariantyView(View):
         :return: Slovník parametrů menu k vytvoření specifických menu.
         """
         specialized_menus = {
-            "Dodavatelé": [
-                ("Přidat variantu", self.add_item),
+            "Varianty": [
                 ("Upravit variantu", self.edit_selected_item),
             ],
         }
@@ -920,10 +932,11 @@ class ItemFrameBase:
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
     table_config = {"sklad": {"order_of_name": 6, "id_col": 2, "id_col_name": "Evidencni_cislo",
-                              "quantity_col": 7, "unit_price_col": 33},
-                    "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id"},
-                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id"},
-                    "varianty": {"order_of_name": 3, "id_col": 0, "id_col_name": "id"},}
+                              "quantity_col": 7, "unit_price_col": 33, "focus": 'Nazev_dilu',},
+                    "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id",},
+                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id", "focus": 'Dodavatel',},
+                    "varianty": {"order_of_name": 3, "id_col": 0, "id_col_name": "id", "focus": 'Nazev_varianty',},
+                    }
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
@@ -1015,12 +1028,24 @@ class ItemFrameBase:
                 self.entries[col].focus()
                 return
             
-        for col in self.curr_entry_dict.get("pos_integer", []):
+        for col in self.curr_entry_dict.get("not_neg_integer", []):
             entry_val = self.entries[col].get()
             if not entry_val.isdigit() or int(entry_val) < 0:
                 messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být celé nezáporné číslo.")
                 self.entries[col].focus()
                 return
+            
+        for col in self.curr_entry_dict.get("pos_real", []):
+            entry_val = self.entries[col].get()
+            if entry_val:
+                try:
+                    float_entry_val = float(entry_val)
+                    if float_entry_val <= 0:
+                        self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
+                        return
+                except ValueError:
+                    self.show_warning(col, f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
+                    return
             
         self.save_item(action, self.id_num)
 
@@ -1083,13 +1108,15 @@ class ItemFrameBase:
                         entry.set(start_value)                         
                     case 'Dodavatel' if self.current_table=='sklad':
                         entry = ttk.Combobox(frame, width=31, values=self.suppliers)
-                        entry.set(start_value)
+                        entry.set(start_value)                    
                     case _:
                         entry = tk.Entry(frame, width=34)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])                                              
                 label.pack(side=tk.LEFT)
                 entry.pack(side=tk.LEFT, padx=2, pady=3)
+                entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
+                entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
                 self.entries[col] = entry
                 if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
                 if col in self.curr_entry_dict.get("insert", []): entry.insert(0, self.curr_entry_dict["insert"][col])
@@ -1097,8 +1124,18 @@ class ItemFrameBase:
                 if col in self.curr_entry_dict.get("pack_forget", []):
                     label.pack_forget()
                     entry.pack_forget()
-            frame.pack(fill=tk.X)        
+            frame.pack(fill=tk.X)
+        self.entries[self.curr_table_config["focus"]].focus()
 
+
+    def frame_bind(self, entry):
+        """
+        Metoda na provázání kláves Enter a Esc se všemi widgety v left_frame a right_frame.
+
+        :params entry: vstupní pole pro zadání dat.
+        """
+
+    
 
 class ItemFrameShow(ItemFrameBase):
     """
@@ -1154,7 +1191,6 @@ class ItemFrameShow(ItemFrameBase):
             label = tk.Label(self.show_frame, text=label_text, borderwidth=2, relief="ridge", width=28, wraplength=195)
             label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
 
-
        
 class ItemFrameEdit(ItemFrameBase):
     """
@@ -1169,7 +1205,7 @@ class ItemFrameEdit(ItemFrameBase):
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.action = 'edit'
-        self.update_frames(action=self.action)         
+        self.update_frames(action=self.action)
         
        
     def init_curr_dict(self):
@@ -1181,12 +1217,18 @@ class ItemFrameEdit(ItemFrameBase):
                                                    'Min_Mnozstvi_ks', 'Datum_nakupu', 'Jednotkova_cena_EUR',
                                                    'Celkova_cena_EUR'),
                                      "mandatory": ('Nazev_dilu',),
-                                     "pos_integer": ('Interne_cislo',),
+                                     "not_neg_integer": ('Interne_cislo',),
                                      },
                            
                            "dodavatele": {"title": "ÚPRAVA DODAVATELE",
                                           "read_only": ('id', 'Dodavatel'),
-                                          }
+                                          },
+                           "varianty": {"title": "ÚPRAVA VARIANTY",
+                                        "read_only": ('id', 'id_sklad', 'id_dodavatele',),
+                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
+                                        "pos_real":('Jednotkova_cena_EUR',),
+                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
+                                        }
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
@@ -1242,7 +1284,14 @@ class ItemFrameAdd(ItemFrameBase):
                                           "pack_forget": (),
                                           "insert": {'id': self.new_id},
                                           "mandatory": ('Dodavatel',),
-                                          }
+                                          },
+                           "varianty": {"title": "VYTVOŘENÍ VARIANTY",
+                                        "read_only": ('id',),
+                                        "mandatory": ('id_sklad', 'id_dodavatele', 'Nazev_varianty', 'Cislo_varianty',),
+                                        "insert": {'id': self.new_id, 'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
+                                        "pos_real":('Jednotkova_cena_EUR',),
+                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),                                        
+                                        },
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
@@ -1300,15 +1349,15 @@ class ItemFrameMovements(ItemFrameBase):
                       },
             }              
         self.title = self.action_dict[self.current_table][self.action]["actual_value"]['Typ_operace']
-        self.entry_dict = {
-            "sklad": {"title": f"{self.title} ZBOŽÍ",
-                      "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
-                                    'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni', 'Dodavatel'),
-                      "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano',
-                                            'Poznamka', 'Nazev_dilu'),
-                      },
-            }  
+        self.entry_dict = {"sklad": {"title": f"{self.title} ZBOŽÍ",
+                                     "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni',
+                                                   'Dodavatel'),
+                                     "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+                                                           'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano',
+                                                           'Poznamka', 'Nazev_dilu'),
+                                     },
+                           }  
         self.curr_entry_dict = self.entry_dict[self.current_table] | self.action_dict[self.current_table][self.action]
         self.devices = ('HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL', 'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I',
                         'LAC_II', 'IPSEN_ENE', 'HSH_ENE', 'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1',
@@ -1353,19 +1402,18 @@ class ItemFrameMovements(ItemFrameBase):
             else:
                 entry_al = tk.Entry(self.left_frame, width=40)                        
             entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
-                
-            if col in self.curr_entry_dict.get("mandatory",[]):
-                entry_al.config(background='yellow')
-            if col in self.curr_entry_dict.get("insert_item_value",[]):
-                entry_al.insert(0, self.item_values[index])        
-            if col in self.curr_entry_dict.get("actual_value",[]):
-                entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
-            if col in self.curr_entry_dict.get("read_only",[]):
-                entry_al.config(state='readonly')                
+            entry_al.bind('<Return>', lambda event: self.check_before_save(action=self.action))
+            entry_al.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
+            
+            if col in self.curr_entry_dict.get("mandatory",[]): entry_al.config(background='yellow')
+            if col in self.curr_entry_dict.get("insert_item_value",[]): entry_al.insert(0, self.item_values[index])        
+            if col in self.curr_entry_dict.get("actual_value",[]): entry_al.insert(0, self.curr_entry_dict["actual_value"][col])
+            if col in self.curr_entry_dict.get("read_only",[]): entry_al.config(state='readonly')                
             if col in self.curr_entry_dict.get("grid_forget",[]):
                 label.grid_forget()
                 entry_al.grid_forget()
             self.entries_al[col] = entry_al
+        self.entries_al['Zmena_mnozstvi'].focus()
 
 
     def show_warning(self, col, warning):
@@ -1686,6 +1734,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.61 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
