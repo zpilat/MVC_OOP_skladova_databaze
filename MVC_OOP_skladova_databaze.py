@@ -157,6 +157,9 @@ class View:
                     "dodavatele": {"id_col": 0,
                                    "id_col_name": 'id',
                                    },
+                    "varianty": {"id_col": 0,
+                                 "id_col_name": 'id',
+                                 },
                     }
 
 
@@ -188,7 +191,9 @@ class View:
                         'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
                         'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
                         'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
-                        'Pod_minimem': 'Pod minimem'}
+                        'Pod_minimem': 'Pod minimem', 'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele',
+                        'Nazev_varianty': 'Název varianty', 'Cislo_varianty': 'Číslo varianty',
+                        'Dodaci_lhuta': 'Dodací lhůta', 'Min_obj_mnozstvi': 'Min. obj. množství'}
 
         
     def customize_ui(self):
@@ -236,11 +241,13 @@ class View:
             ],
             "Zobrazení": [
                 ("Sklad", lambda: self.controller.show_data('sklad')),
+                ("Varianty", lambda: self.controller.show_data('varianty')),
                 ("Auditovací log", lambda: self.controller.show_data('audit_log')),
-                ("Dodavatelé", lambda: self.controller.show_data('dodavatele'))
+                ("Dodavatelé", lambda: self.controller.show_data('dodavatele')),
             ]
         }
         self.update_menu(common_menus)  
+
 
     def initialize_frames(self):        
         """
@@ -267,7 +274,7 @@ class View:
         self.search_entry.pack(side=tk.LEFT)
         self.search_button = tk.Button(self.search_frame, text="Filtrovat",
                                        command=lambda: self.controller.show_data(self.current_table))
-        self.search_button.pack(side=tk.LEFT, padx=15)
+        self.search_button.pack(side=tk.LEFT, padx=5)
 
 
     def initialize_check_buttons(self):
@@ -281,18 +288,17 @@ class View:
             low_stock_checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum['Pod_minimem'],
                                                    variable=self.filter_low_stock, borderwidth=3, relief="groove", onvalue=True,
                                                    offvalue=False, command=lambda: self.controller.show_data(self.current_table))
-            low_stock_checkbutton.pack(side='left', padx=15, pady=5)
+            low_stock_checkbutton.pack(side='left', padx=5, pady=5)
             
         for col in self.filter_columns:
             if col in self.special_columns:
                 checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
                                              borderwidth=3, relief="groove", onvalue=True, offvalue=False,
                                              command=lambda col=col: self.toggle_filter(col))
-                checkbutton.pack(side='left', padx=15, pady=5)
             else:
                 checkbutton = tk.Checkbutton(self.check_buttons_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
                                              onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
-                checkbutton.pack(side='left', padx=5, pady=5)
+            checkbutton.pack(side='left', padx=5, pady=5)
 
 
     def initialize_treeview(self, tree_frame):
@@ -463,7 +469,6 @@ class View:
         self.controller.show_data(self.current_table)
             
 
-
     def on_column_click(self, clicked_col):
         """
         Metoda pro třídění dat v tabulce podle kliknutí na název sloupce.
@@ -542,6 +547,7 @@ class View:
         self.id_num = self.tree.item(self.selected_item, 'values')[self.id_col]
         self.controller.show_data_for_editing(self.current_table, self.id_num, self.id_col_name,
                                               self.item_frame, self.tab2hum, self.check_columns)
+        
 
     def add_item(self):
         """
@@ -840,6 +846,57 @@ class DodavateleView(View):
         return col_params
 
 
+class VariantyView(View):
+    """
+    Třída VariantyView pro specifické zobrazení dat z tabulky varianty. Dědí od třídy View.
+    """
+    def __init__(self, root, controller, col_names):
+        """
+        Inicializace specifického zobrazení pro varianty.
+        
+        :param root: Hlavní okno aplikace.
+        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
+        :param col_names: Názvy sloupců pro aktuální zobrazení.
+        """
+        super().__init__(root, controller)
+        self.current_table = 'varianty'
+        self.col_names = col_names
+        self.customize_ui()   
+
+
+    def spec_menus(self):
+        """
+        Vytvoření slovníku pro specifická menu dle typu zobrazovaných dat.
+        
+        :return: Slovník parametrů menu k vytvoření specifických menu.
+        """
+        specialized_menus = {
+            "Dodavatelé": [
+                ("Přidat variantu", self.add_item),
+                ("Upravit variantu", self.edit_selected_item),
+            ],
+        }
+        return specialized_menus
+
+
+    def col_parameters(self):
+        """
+        Nastavení specifických parametrů sloupců, jako jsou šířka a zarovnání.
+        
+        :return: Seznam slovníků parametrů sloupců k rozbalení.
+        """
+        col_params = []     
+        for index, col in enumerate(self.col_names):
+            match col:          
+                case 'Nazev_varianty':
+                    col_params.append({"width": 300, "anchor": "w"})
+                case _ if col in self.hidden_columns:
+                    col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
+                case _:    
+                    col_params.append({"width": 80, "anchor": "center"})
+        return col_params
+
+
 class ItemFrameBase:
     """
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
@@ -847,7 +904,8 @@ class ItemFrameBase:
     table_config = {"sklad": {"order_of_name": 6, "id_col": 2, "id_col_name": "Evidencni_cislo",
                               "quantity_col": 7, "unit_price_col": 33},
                     "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id"},
-                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id"}}
+                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id"},
+                    "varianty": {"order_of_name": 3, "id_col": 0, "id_col_name": "id"},}
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
@@ -1050,9 +1108,10 @@ class ItemFrameShow(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.entry_dict = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY",},
-                           "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ",},
-                           "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE",},
+        self.entry_dict = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY"},
+                           "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ"},
+                           "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE"},
+                           "varianty": {"title": "ZOBRAZENÍ VARIANTY"},
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
                            
@@ -1470,6 +1529,8 @@ class Controller:
                     self.current_view_instance = AuditLogView(self.root, self, col_names)
                 elif table == "dodavatele":
                     self.current_view_instance = DodavateleView(self.root, self, col_names)
+                elif table == "varianty":
+                    self.current_view_instance = VariantyView(self.root, self, col_names)
 
         self.current_view_instance.add_data(current_data=data)
 
