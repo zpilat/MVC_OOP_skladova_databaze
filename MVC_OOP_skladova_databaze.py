@@ -144,17 +144,17 @@ class View:
                               "hidden_columns": ('Ucetnictvi', 'Kriticky_dil', 'HSH', 'TQ8', 'TQF_XL_I', 'TQF_XL_II', 'DC_XL',
                                                  'DAC_XLI_a_II', 'DL_XL', 'DAC', 'LAC_I', 'LAC_II', 'IPSEN_ENE', 'HSH_ENE',
                                                  'XL_ENE1', 'XL_ENE2', 'IPSEN_W', 'HSH_W', 'KW', 'KW1', 'KW2', 'KW3', 'Objednano'),
+                              "special_columns": ('Ucetnictvi', 'Kriticky_dil'),
                               "id_col": 2,
                               "id_col_name": 'Evidencni_cislo',
                               },
                     "audit_log": {"check_columns": ('Ucetnictvi',),
                                   "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace', 'id'),
+                                  "special_columns": ('Ucetnictvi',),
                                   "id_col": 20,
                                   "id_col_name": 'id',
                                   },
-                    "dodavatele": {"check_columns": (),
-                                   "hidden_columns": (),
-                                   "id_col": 0,
+                    "dodavatele": {"id_col": 0,
                                    "id_col_name": 'id',
                                    },
                     }
@@ -168,7 +168,7 @@ class View:
         :param controller(Controller): Instance kontroleru pro komunikaci mezi modelem a pohledem.
         """
         self.root = root
-        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.53 MVC OOP')
+        self.root.title('Zobrazení databáze HPM HEAT SK - verze 0.54 MVC OOP')
         self.controller = controller
         self.sort_reverse = False
         self.id_col = None
@@ -187,7 +187,8 @@ class View:
                         'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
                         'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
                         'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
-                        'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon'}
+                        'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
+                        'Pod_minimem': 'Pod minimem'}
 
         
     def customize_ui(self):
@@ -195,8 +196,9 @@ class View:
         Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
         """
         self.curr_table_config = View.table_config[self.current_table]
-        self.check_columns = self.curr_table_config["check_columns"]
-        self.hidden_columns = self.curr_table_config["hidden_columns"]
+        self.check_columns = self.curr_table_config.get("check_columns", [])
+        self.hidden_columns = self.curr_table_config.get("hidden_columns", [])
+        self.special_columns = self.curr_table_config.get("special_columns", [])
         self.id_col = self.curr_table_config["id_col"]
         self.id_col_name = self.curr_table_config["id_col_name"]     
         self.initialize_menu()
@@ -214,7 +216,7 @@ class View:
         self.tree.tag_configure('oddrow', background='#F5F5F5')
         self.tree.tag_configure('low_stock', foreground='#CD5C5C')
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)   
-        self.setup_columns(self.col_parameters())
+        self.setup_columns(self.col_parameters())    
 
 
     def initialize_menu(self):
@@ -248,6 +250,8 @@ class View:
         self.frame.pack(fill=tk.BOTH, expand=True)     
         self.search_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
         self.search_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+        self.check_buttons_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
+        self.check_buttons_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)        
         self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
         self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)           
         self.item_frame = tk.Frame(self.frame, width=435, borderwidth=2, relief="groove")
@@ -259,24 +263,36 @@ class View:
         """
         Inicializace políčka a tlačítka pro vyhledávání / filtrování.
         """
-        self.search_entry = tk.Entry(self.search_frame, width=40)
+        self.search_entry = tk.Entry(self.search_frame, width=50)
         self.search_entry.pack(side=tk.LEFT)
         self.search_button = tk.Button(self.search_frame, text="Filtrovat",
                                        command=lambda: self.controller.show_data(self.current_table))
-        self.search_button.pack(side=tk.LEFT)
+        self.search_button.pack(side=tk.LEFT, padx=15)
 
 
     def initialize_check_buttons(self):
         """
         Nastavení specifických checkbuttonů pro filtrování zobrazených položek.
         """
+        self.filter_low_stock = tk.BooleanVar(value=False)
         self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
-        for col in self.check_columns:
-            checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
-                                         onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
-            checkbutton.pack(side='left', padx=5, pady=5)
-            if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):
-                checkbutton.config(borderwidth=3, relief="groove")
+
+        if self.current_table == 'sklad':
+            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum['Pod_minimem'],
+                                                   variable=self.filter_low_stock, borderwidth=3, relief="groove", onvalue=True,
+                                                   offvalue=False, command=lambda: self.controller.show_data(self.current_table))
+            low_stock_checkbutton.pack(side='left', padx=15, pady=5)
+            
+        for col in self.filter_columns:
+            if col in self.special_columns:
+                checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
+                                             borderwidth=3, relief="groove", onvalue=True, offvalue=False,
+                                             command=lambda col=col: self.toggle_filter(col))
+                checkbutton.pack(side='left', padx=15, pady=5)
+            else:
+                checkbutton = tk.Checkbutton(self.check_buttons_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
+                                             onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
+                checkbutton.pack(side='left', padx=5, pady=5)
 
 
     def initialize_treeview(self, tree_frame):
@@ -348,7 +364,7 @@ class View:
             self.tree.column(col, **col_params[idx])
    
 
-    def add_data(self, filter_low_stock=False, current_data=None):
+    def add_data(self, current_data=None):
         """
         Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
         Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
@@ -361,7 +377,7 @@ class View:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        filtered_data = self.filter_data(self.current_data, filter_low_stock)
+        filtered_data = self.filter_data(self.current_data)
 
         sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
 
@@ -381,14 +397,13 @@ class View:
         self.mark_first_item()
         
 
-    def filter_data(self, data, filter_low_stock):
+    def filter_data(self, data):
         """
         Vyfiltrování dat podle zadaných dat v search_entry ve všech tabulkách.
         V tabulce sklad navíc dle zaškrtnutých check buttonů a low stock filtru.
         V tabulce audit_log navíc dle comboboxu "VŠE" a v rozmezí datumů v date entry.
 
         :param data: Data pro filtraci dle search entry.
-        :param filter_low_stock: Parametr pro filtraci položek pod minimálním množstvím.
         :return: Přefiltrovaná data.
         """ 
         search_query = self.search_entry.get()
@@ -396,10 +411,10 @@ class View:
             filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
         else:
             filtered_data = data
-        
-        if filter_low_stock:
-            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
 
+        if self.filter_low_stock.get():
+            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]            
+        
         if self.current_table == "audit_log":
             if self.selected_option == "PŘÍJEM":
                 filtered_data = [row for row in filtered_data if row[8] == "PŘÍJEM"]
@@ -409,7 +424,7 @@ class View:
         if self.start_date:       
             filtered_data = [row for row in filtered_data if self.start_date <= (row[12] or row[13]) <= self.end_date]
             
-        if any(value.get() for value in self.filter_columns.values()):
+        if any(value.get() for value in self.filter_columns.values()):          
             filtered_data_temp = []
             for row in filtered_data:
                 include_row = True  
@@ -439,11 +454,10 @@ class View:
                              Podle tohoto sloupce se určuje, který filtr bude aplikován nebo odstraněn.
         """
         status_of_chb = self.filter_columns[selected_col].get()
-        special_group = {'Ucetnictvi', 'Kriticky_dil'}
 
-        if status_of_chb and selected_col not in special_group:
+        if status_of_chb and selected_col not in self.special_columns:
             for col in self.filter_columns:
-                if col not in special_group and col != selected_col:
+                if col not in self.special_columns and col != selected_col:
                     self.filter_columns[col].set(False)
                     
         self.controller.show_data(self.current_table)
@@ -577,9 +591,6 @@ class SkladView(View):
                 ("Příjem zboží", lambda: self.item_movements(action='prijem')),
                 ("Výdej zboží", lambda: self.item_movements(action='vydej')), 
             ],
-            "Nákup": [
-                ("Položky pod minimem", lambda: self.add_data(filter_low_stock=True)),
-            ],
         }
         return specialized_menus
 
@@ -632,7 +643,8 @@ class SkladView(View):
             else:
                 return
             
-        self.controller.show_data(self.current_table)       
+        self.controller.show_data(self.current_table)
+        
 
     def item_movements(self, action):
         """
