@@ -208,7 +208,7 @@ class View:
                         'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
                         'Pod_minimem': 'Pod minimem', 'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele',
                         'Nazev_varianty': 'Název varianty', 'Cislo_varianty': 'Číslo varianty',
-                        'Dodaci_lhuta': 'Dodací lhůta', 'Min_obj_mnozstvi': 'Min. obj. množství'}
+                        'Dodaci_lhuta': 'Dodací lhůta', 'Min_obj_mnozstvi': 'Min. obj. množ.'}
 
         
     def customize_ui(self):
@@ -528,13 +528,20 @@ class View:
             self.tree.focus(first_item)
 
 
+    def widget_destroy(self):
+        """
+        Metoda na vymazání všechn dat z item_frame.
+        """
+        for widget in self.item_frame.winfo_children():
+            widget.destroy()
+
+
     def show_selected_item(self, event=None):
         """
         Metoda pro vytvoření instance pro získání dat a zobrazení vybrané položky z treeview.
         """           
         if self.item_frame_show is None:
-            for widget in self.item_frame.winfo_children():
-                widget.destroy()
+            self.widget_destroy()
             self.item_frame_show = ItemFrameShow(self.item_frame, self.controller, self.col_names,
                                                  self.tab2hum, self.current_table, self.check_columns)
         try:
@@ -546,46 +553,40 @@ class View:
             return
 
 
-    def edit_selected_item(self):
+    def edit_selected_item(self, new_variant=False):
         """
         Metoda pro získání aktuálních dat z databáze pro vybranou položku a jejich zobrazení
-        pro editaci.
+        pro editaci, případně pro tvorbu nové varianty.
+
+        :params variant: parametry pro identifikaci vytvoření nové varianty.
         """
         try:
             self.selected_item = self.tree.selection()[0]
         except Exception:
-            messagebox.showwarning("Upozornění", "Žádná položka k zobrazení.")
+            messagebox.showwarning("Upozornění", "Žádná položka k úpravě.")
             return
         
-        for widget in self.item_frame.winfo_children():
-            widget.destroy()
-            
+        self.widget_destroy()    
         self.item_frame_show = None
         self.id_num = self.tree.item(self.selected_item, 'values')[self.id_col]
-        self.controller.show_data_for_editing(self.current_table, self.id_num, self.id_col_name,
-                                              self.item_frame, self.tab2hum, self.check_columns)
+        if new_variant:
+            self.controller.add_variant(self.current_table, self.id_num, self.id_col_name,
+                                        self.item_frame, self.tab2hum, self.check_columns)
+        else:
+            self.controller.show_data_for_editing(self.current_table, self.id_num, self.id_col_name,
+                                                  self.item_frame, self.tab2hum, self.check_columns)
         
-
-    def add_item(self, table=None):
+        
+    def add_item(self):
         """
         Metoda pro přidání nové položky do aktuální tabulky.
-        """          
-        for widget in self.item_frame.winfo_children():
-            widget.destroy()
-            
+        """
+        self.widget_destroy()                      
         self.item_frame_show = None
         self.id_num = None
-        
-        if table is None:
-            self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
+        self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
                                      self.item_frame, self.tab2hum, self.check_columns)
-        elif table == "varianty":
-            id_num = self.table_config["varianty"].get("id_num", [])
-            id_col_name = self.table_config["varianty"].get("id_col_name", [])
-            check_columns = self.table_config["varianty"].get("check_columns", [])
-            self.controller.add_item(table, id_num, id_col_name,
-                                     self.item_frame, self.tab2hum, check_columns)
-            
+
 
 class SkladView(View):
     """
@@ -603,7 +604,6 @@ class SkladView(View):
         self.current_table = 'sklad'
         self.col_names = col_names
         self.customize_ui()
-        self.suppliers = self.controller.fetch_suppliers() 
 
 
     def spec_menus(self):
@@ -624,7 +624,7 @@ class SkladView(View):
                 ("Výdej zboží", lambda: self.item_movements(action='vydej')), 
             ],
             "Varianty": [
-                ("Přidat variantu", lambda: self.add_item(table="varianty")),
+                ("Přidat variantu", lambda: self.edit_selected_item(new_variant=True)),
             ],            
         }
         return specialized_menus
@@ -691,9 +691,7 @@ class SkladView(View):
             messagebox.showwarning("Upozornění", "Nebyla vybrána žádná položka pro pohyb zboží na skladě.")
             return
 
-        for widget in self.item_frame.winfo_children():
-            widget.destroy()
-            
+        self.widget_destroy()            
         self.item_frame_show = None
         self.id_num = self.tree.item(self.selected_item, 'values')[self.id_col]
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
@@ -1126,16 +1124,7 @@ class ItemFrameBase:
                     entry.pack_forget()
             frame.pack(fill=tk.X)
         self.entries[self.curr_table_config["focus"]].focus()
-
-
-    def frame_bind(self, entry):
-        """
-        Metoda na provázání kláves Enter a Esc se všemi widgety v left_frame a right_frame.
-
-        :params entry: vstupní pole pro zadání dat.
-        """
-
-    
+  
 
 class ItemFrameShow(ItemFrameBase):
     """
@@ -1246,6 +1235,7 @@ class ItemFrameEdit(ItemFrameBase):
         self.show_for_editing()
 
 
+
 class ItemFrameAdd(ItemFrameBase):
     """
     Třída ItemFrameAdd se stará o tvorbu nových položek.
@@ -1259,7 +1249,6 @@ class ItemFrameAdd(ItemFrameBase):
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.id_num = None
-        self.item_values = None
         self.action = 'add'
         self.update_frames(action=self.action)        
 
@@ -1295,16 +1284,70 @@ class ItemFrameAdd(ItemFrameBase):
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
 
+
     def add_item(self, new_id, new_interne_cislo):
         """
         Metoda pro přidání nové položky do aktuální tabulky.
         """
+        self.item_values = None
         self.new_id = new_id
         self.new_interne_cislo = new_interne_cislo
         self.init_curr_dict()
         self.initialize_title(add_name_label=False)
         self.show_for_editing()
-                   
+
+
+    def add_variant(self, item_values, sklad_col_names, new_id):
+        """
+        Metoda pro vytvoření nové varianty podle vybrané položky z Treeview.
+        Název položky je v title_frame, zbylé informace v show_frame
+
+        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.        
+        """        
+        self.entries = {}
+        self.item_values = item_values
+        self.new_id = new_id
+        self.new_interne_cislo = None
+        self.init_curr_dict()        
+        self.initialize_title()       
+        self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        print(f"{item_values=}\n {new_id=}\n {self.col_names}")
+                  
+        for index, col in enumerate(self.col_names):
+            frame = tk.Frame(self.left_frame)
+            label = tk.Label(frame, text=self.tab2hum[col], width=12)
+            start_value = self.item_values[index] if self.item_values else ""
+            match col:                          
+                case 'Min_Mnozstvi_ks':
+                    entry = tk.Spinbox(frame, width=32, from_=0, to='infinity')
+                    if self.item_values:
+                        entry.delete(0, "end")
+                        entry.insert(0, self.item_values[index])                
+                case 'Jednotky':
+                    entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
+                    entry.set(start_value)                         
+                case 'Dodavatel' if self.current_table=='sklad':
+                    entry = ttk.Combobox(frame, width=31, values=self.suppliers)
+                    entry.set(start_value)                    
+                case _:
+                    entry = tk.Entry(frame, width=34)
+                    if self.item_values:
+                        entry.delete(0, "end")
+                        entry.insert(0, self.item_values[index])                                              
+            label.pack(side=tk.LEFT)
+            entry.pack(side=tk.LEFT, padx=2, pady=3)
+            entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
+            entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
+            self.entries[col] = entry
+            if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
+            if col in self.curr_entry_dict.get("insert", []): entry.insert(0, self.curr_entry_dict["insert"][col])
+            if col in self.curr_entry_dict.get("read_only", []): entry.config(state='readonly')
+            if col in self.curr_entry_dict.get("pack_forget", []):
+                label.pack_forget()
+                entry.pack_forget()
+            frame.pack(fill=tk.X)
+        self.entries[self.curr_table_config["focus"]].focus()
+                  
 
 class ItemFrameMovements(ItemFrameBase):
     """
@@ -1614,9 +1657,10 @@ class Controller:
         """
         item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
         col_names = self.model.fetch_col_names(table)
-
-        self.current_item_instance = ItemFrameEdit(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
-        self.current_item_instance.open_edit_window(item_values)
+        
+        self.current_item_instance = ItemFrameEdit(master, self, col_names, tab2hum, table,
+                                                       check_columns, self.current_view_instance)
+        self.current_item_instance.open_edit_window(item_values)    
 
 
     def show_data_for_movements(self, table, id_num, id_col_name, master, tab2hum, check_columns, action):
@@ -1649,6 +1693,25 @@ class Controller:
         
         self.current_item_instance = ItemFrameAdd(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
         self.current_item_instance.add_item(new_id, new_interne_cislo)
+
+
+    def add_variant(self, table, id_num, id_col_name, master, tab2hum, check_columns):
+        """
+        Získání dat a zobrazení vybrané položky pro vytvoření nové varianty.
+        
+        :param table: Název tabulky pro zobrazení.
+        :param id_num: Identifikační číslo položky pro zobrazení.
+        """
+        item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
+        sklad_col_names = self.model.fetch_col_names(table)
+        
+        # Získat data z slovníku ItemFrameBase "varianty"!!!
+        varianty_col_names = list(self.model.fetch_col_names("varianty")) + ["Nazev_dilu", "Dodavatel"]
+        new_id = str(self.model.get_max_id("varianty", "id") + 1)
+        
+        self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, "varianty",
+                                                   [], self.current_view_instance)
+        self.current_item_instance.add_variant(item_values, sklad_col_names, new_id) 
 
 
     def insert_new_item(self, table, columns, values_to_insert):
@@ -1734,7 +1797,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.61 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.62 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
