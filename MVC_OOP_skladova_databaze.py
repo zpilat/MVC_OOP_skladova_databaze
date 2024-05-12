@@ -1045,17 +1045,26 @@ class ItemFrameBase:
                 self.entries[col].focus()
                 return
             
-        for col in self.curr_entry_dict.get("pos_real", []):
+        for col in set(self.curr_entry_dict.get("pos_real", [])).union(self.curr_entry_dict.get("not_neg_real", [])):
             entry_val = self.entries[col].get()
             if entry_val:
                 try:
                     float_entry_val = float(entry_val)
-                    if float_entry_val <= 0:
-                        self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
+                    if col in self.curr_entry_dict.get("pos_real", []) and float_entry_val <= 0:
+                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
                         return
+                    if col in self.curr_entry_dict.get("not_neg_real", []) and float_entry_val < 0:
+                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být nezáporné reálné číslo s desetinnou tečkou.")
+                        return 
                 except ValueError:
-                    self.show_warning(col, f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
+                    messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} není platné reálné číslo s desetinnou tečkou.")
                     return
+
+        if self.current_table=='varianty':
+            id_sklad_value = self.entries['id_sklad'].get()
+            dodavatel_value = self.entries['Dodavatel'].get()
+            print(id_sklad_value, dodavatel_value)
+            return
             
         self.save_item(action, self.id_num)
 
@@ -1108,7 +1117,7 @@ class ItemFrameBase:
                 label = tk.Label(frame, text=self.tab2hum[col], width=12)
                 start_value = self.item_values[index] if self.item_values else ""
                 match col:                          
-                    case 'Min_Mnozstvi_ks':
+                    case 'Min_Mnozstvi_ks' | 'Min_obj_mnozstvi':
                         entry = tk.Spinbox(frame, width=32, from_=0, to='infinity')
                         if self.item_values:
                             entry.delete(0, "end")
@@ -1116,7 +1125,7 @@ class ItemFrameBase:
                     case 'Jednotky':
                         entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
                         entry.set(start_value)                         
-                    case 'Dodavatel' if self.current_table=='sklad':
+                    case 'Dodavatel' if self.current_table=='sklad' or self.current_table=='varianty':
                         entry = ttk.Combobox(frame, width=31, values=self.suppliers)
                         entry.set(start_value)                    
                     case _:
@@ -1287,11 +1296,13 @@ class ItemFrameAdd(ItemFrameBase):
                                           "mandatory": ('Dodavatel',),
                                           },
                            "varianty": {"title": "VYTVOŘENÍ VARIANTY",
-                                        "read_only": ('id',),
-                                        "mandatory": ('id_sklad', 'id_dodavatele', 'Nazev_varianty', 'Cislo_varianty',),
-                                        "insert": {'id': self.new_id, 'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
-                                        "pos_real":('Jednotkova_cena_EUR',),
-                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),                                        
+                                        "read_only": ('id','Nazev_dilu', 'id_sklad', 'id_dodavatele', 'Dodavatel'),
+                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty'),
+                                        "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
+                                        "not_neg_real":('Jednotkova_cena_EUR',),
+                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
+                                        "pack_forget": ('id_dodavatele',),
+                                        "calculate": ('id_dodavatele',),
                                         },
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1309,7 +1320,7 @@ class ItemFrameAdd(ItemFrameBase):
         self.show_for_editing()
 
 
-    def add_variant(self, item_values, new_id):
+    def add_variant(self, item_values):
         """
         Metoda pro vytvoření nové varianty podle vybrané položky z Treeview.
         Název položky je v title_frame, zbylé informace v show_frame
@@ -1317,12 +1328,11 @@ class ItemFrameAdd(ItemFrameBase):
         :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.        
         """        
         self.entries = {}
-        self.item_values = item_values
-        self.new_id = new_id
+        self.new_id = None
         self.new_interne_cislo = None
+        self.item_values = item_values
         self.init_curr_dict()        
-        self.initialize_title()       
-        self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        self.initialize_title(add_name_label=False)       
         self.show_for_editing()
                 
 
@@ -1685,10 +1695,12 @@ class Controller:
         varianty_col_names = list(self.model.fetch_col_names(varianty_table)) + ["Nazev_dilu", "Dodavatel"]
         new_id = str(self.model.get_max_id(varianty_table, varianty_id_col_name) + 1)
         varianty_item_values = [sklad_values_dict.get(col, "") for col in varianty_col_names]
+        varianty_item_values[0] = new_id
+        varianty_item_values[1] = sklad_values_dict['Evidencni_cislo']
                                          
         self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, varianty_table,
                                                    varianty_check_columns, self.current_view_instance)
-        self.current_item_instance.add_variant(varianty_item_values, new_id)         
+        self.current_item_instance.add_variant(varianty_item_values)         
 
 
     def insert_new_item(self, table, columns, values_to_insert):
@@ -1774,7 +1786,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.64 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.65 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
