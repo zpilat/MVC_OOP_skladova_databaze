@@ -1311,29 +1311,25 @@ class ItemFrameAdd(ItemFrameBase):
         self.init_curr_dict()        
         self.initialize_title()       
         self.id_num = self.item_values[self.curr_table_config["id_col"]]
-        print(f"{item_values=}\n {new_id=}\n {self.col_names}")
-                  
+        sklad_values_dict = {keys: values for keys, values in zip(sklad_col_names, item_values)}
+
         for index, col in enumerate(self.col_names):
             frame = tk.Frame(self.left_frame)
             label = tk.Label(frame, text=self.tab2hum[col], width=12)
-            start_value = self.item_values[index] if self.item_values else ""
+            start_value = sklad_values_dict.get(col, None)
             match col:                          
-                case 'Min_Mnozstvi_ks':
+                case 'Min_obj_mnozstvi':
                     entry = tk.Spinbox(frame, width=32, from_=0, to='infinity')
                     if self.item_values:
-                        entry.delete(0, "end")
-                        entry.insert(0, self.item_values[index])                
-                case 'Jednotky':
-                    entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
-                    entry.set(start_value)                         
-                case 'Dodavatel' if self.current_table=='sklad':
+                        entry.delete(0, "end")                                   
+                case 'Dodavatel':
                     entry = ttk.Combobox(frame, width=31, values=self.suppliers)
-                    entry.set(start_value)                    
+                    entry.set(start_value)                   
                 case _:
                     entry = tk.Entry(frame, width=34)
-                    if self.item_values:
+                    if start_value:
                         entry.delete(0, "end")
-                        entry.insert(0, self.item_values[index])                                              
+                        entry.insert(0, start_value)                                              
             label.pack(side=tk.LEFT)
             entry.pack(side=tk.LEFT, padx=2, pady=3)
             entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
