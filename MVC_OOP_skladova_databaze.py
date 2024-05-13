@@ -74,6 +74,19 @@ class Model:
         return self.cursor.fetchone()
 
 
+    def check_existence(self, id_sklad_value, id_dodavatele_value, current_table):
+        """
+        SQL dotaz pro ověření existence varianty před uložením nové.
+        """
+        query = f"""SELECT EXISTS(
+                        SELECT 1 FROM {current_table} 
+                        WHERE id_sklad = ? AND id_dodavatele = ?
+                    )"""
+        self.cursor.execute(query, (id_sklad_value, id_dodavatele_value))
+
+        return self.cursor.fetchone()[0] == 1    
+
+
     def get_max_id(self, curr_table, id_col_name):
         """
         Vrátí nejvyšší hodnotu ID ze zadaného sloupce v zadané tabulce.
@@ -208,7 +221,7 @@ class View:
                         'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
                         'Pod_minimem': 'Pod minimem', 'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele',
                         'Nazev_varianty': 'Název varianty', 'Cislo_varianty': 'Číslo varianty',
-                        'Dodaci_lhuta': 'Dodací lhůta', 'Min_obj_mnozstvi': 'Min. obj. množ.'}
+                        'Dodaci_lhuta': 'Dod. lhůta dnů', 'Min_obj_mnozstvi': 'Min. obj. množ.'}
 
         
     def customize_ui(self):
@@ -849,7 +862,7 @@ class DodavateleView(View):
         super().__init__(root, controller)
         self.current_table = 'dodavatele'
         self.col_names = col_names
-        self.customize_ui()   
+        self.customize_ui()
 
 
     def spec_menus(self):
@@ -963,7 +976,8 @@ class ItemFrameBase:
         self.tab2hum = tab2hum
         self.current_table = current_table
         self.check_columns = check_columns
-        self.suppliers = self.controller.fetch_suppliers()    
+        self.suppliers_dict = self.controller.fetch_suppliers()
+        self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
         self.initialize_fonts()
         self.initialize_frames()
         self.logged_user = "Janarčin"
@@ -1062,14 +1076,17 @@ class ItemFrameBase:
 
         if self.current_table=='varianty':
             id_sklad_value = self.entries['id_sklad'].get()
-            dodavatel_value = self.entries['Dodavatel'].get()
-            print(id_sklad_value, dodavatel_value)
-            return
+            id_dodavatele_value = self.entries['id_dodavatele'].get()
+            exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, self.current_table)
+            if exists_variant:
+                messagebox.showwarning("Chyba", "Tato varianta již existuje.")
+                return
+            self.col_names = self.col_names[:-2]
             
-        self.save_item(action, self.id_num)
+        self.save_item(action)
 
 
-    def save_item(self, action, selected_item_id):
+    def save_item(self, action):
         """
         Metoda na uložení nových / upravených dat v databázi.
 
@@ -1082,16 +1099,19 @@ class ItemFrameBase:
         
         self.checkbutton_values = {col: (1 if state.get() else 0) for col, state in self.checkbutton_states.items()}
         combined_values = {**self.entry_values, **self.checkbutton_values}
+        print(combined_values)
         values_to_insert = [combined_values[col] for col in self.col_names]
+        print(values_to_insert)
                 
         if action == "add":
             success = self.controller.insert_new_item(self.current_table, self.col_names, values_to_insert)
-        elif action == "edit" and selected_item_id is not None:
-            success = self.controller.update_row(self.current_table, selected_item_id, self.curr_table_config["id_col_name"], combined_values)
+        elif action == "edit" and self.id_num is not None:
+            success = self.controller.update_row(self.current_table, self.id_num, self.curr_table_config["id_col_name"], combined_values)
         if not success:
             return
             
         self.controller.show_data(self.current_table)
+
 
     def show_for_editing(self):
         """
@@ -1115,6 +1135,7 @@ class ItemFrameBase:
             else:
                 frame = tk.Frame(self.left_frame)
                 label = tk.Label(frame, text=self.tab2hum[col], width=12)
+                label.pack(side=tk.LEFT)
                 start_value = self.item_values[index] if self.item_values else ""
                 match col:                          
                     case 'Min_Mnozstvi_ks' | 'Min_obj_mnozstvi':
@@ -1125,14 +1146,15 @@ class ItemFrameBase:
                     case 'Jednotky':
                         entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
                         entry.set(start_value)                         
-                    case 'Dodavatel' if self.current_table=='sklad' or self.current_table=='varianty':
+                    case 'Dodavatel' if self.current_table in ['sklad', 'varianty']:
                         entry = ttk.Combobox(frame, width=31, values=self.suppliers)
-                        entry.set(start_value)                    
+                        entry.set(start_value)
+                        if self.current_table=='varianty':
+                            entry.bind("<<ComboboxSelected>>", lambda event, entry=entry: self.supplier_number(entry))
                     case _:
                         entry = tk.Entry(frame, width=34)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])                                              
-                label.pack(side=tk.LEFT)
                 entry.pack(side=tk.LEFT, padx=2, pady=3)
                 entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
                 entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
@@ -1145,7 +1167,19 @@ class ItemFrameBase:
                     entry.pack_forget()
             frame.pack(fill=tk.X)
         self.entries[self.curr_table_config["focus"]].focus()
-  
+
+
+    def supplier_number(self, entry=None):
+        """
+        Metoda na vložení čísla dodavatele do entry pro id_dodavatele dle vybraného dodavatele v comboboxu.
+        """
+        supplier_id = self.suppliers_dict[entry.get()]
+        idd = "id_dodavatele"
+        self.entries[idd].config(state='normal')
+        self.entries[idd].delete(0, 'end')
+        self.entries[idd].insert(0, supplier_id)
+        self.entries[idd].config(state='readonly')
+
 
 class ItemFrameShow(ItemFrameBase):
     """
@@ -1269,7 +1303,6 @@ class ItemFrameAdd(ItemFrameBase):
         """
         super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
         self.current_view_instance = current_view_instance
-        self.id_num = None
         self.action = 'add'
         self.update_frames(action=self.action)        
 
@@ -1296,13 +1329,12 @@ class ItemFrameAdd(ItemFrameBase):
                                           "mandatory": ('Dodavatel',),
                                           },
                            "varianty": {"title": "VYTVOŘENÍ VARIANTY",
-                                        "read_only": ('id','Nazev_dilu', 'id_sklad', 'id_dodavatele', 'Dodavatel'),
-                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty'),
+                                        "read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
+                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel',),
                                         "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
                                         "not_neg_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
-                                        "pack_forget": ('id_dodavatele',),
-                                        "calculate": ('id_dodavatele',),
+                                        "calculate": 'id_dodavatele',
                                         },
                            }
         self.curr_entry_dict = self.entry_dict[self.current_table]
@@ -1331,6 +1363,9 @@ class ItemFrameAdd(ItemFrameBase):
         self.new_id = None
         self.new_interne_cislo = None
         self.item_values = item_values
+        id_dodavatele_value = self.item_values[-1]
+        if id_dodavatele_value:
+            self.item_values[2] = self.suppliers_dict[self.item_values[-1]]
         self.init_curr_dict()        
         self.initialize_title(add_name_label=False)       
         self.show_for_editing()
@@ -1585,10 +1620,8 @@ class Controller:
         :return N-tice seřazených dodavatelů.
         """
         data = self.model.fetch_data('dodavatele')
-        suppliers = []
-        for row in data:
-            suppliers.append(row[1])
-        return tuple(sorted(suppliers))
+        suppliers = {row[1]: row[0] for row in data}            
+        return suppliers
 
 
     def get_max_id(self, curr_table, id_col_name):
@@ -1703,6 +1736,13 @@ class Controller:
         self.current_item_instance.add_variant(varianty_item_values)         
 
 
+    def check_existence_of_variant(self, id_sklad_value, id_dodavatele_value, current_table):
+        """
+        Metoda, která ověří, zda varianta už neexistuje před uložením nové.
+        """
+        exists_variant = self.model.check_existence(id_sklad_value, id_dodavatele_value, current_table)
+        return exists_variant
+
     def insert_new_item(self, table, columns, values_to_insert):
         """
         Pokusí se vložit novou položku do zadané tabulky databáze. Pokud operace selže kvůli
@@ -1786,7 +1826,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.65 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.70 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
