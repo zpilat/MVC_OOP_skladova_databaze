@@ -169,25 +169,13 @@ class View:
     """
     table_config = {"sklad": {"check_columns": ('Ucetnictvi', 'Kriticky_dil',),
                               "hidden_columns": ('Ucetnictvi', 'Kriticky_dil', 'Objednano',),
-                              "special_columns": ('Ucetnictvi', 'Kriticky_dil'),
-                              "id_col": 2,
+                              "special_columns": ('Ucetnictvi', 'Kriticky_dil',),
                               "id_col_name": 'Evidencni_cislo',
                               },
                     "audit_log": {"check_columns": ('Ucetnictvi',),
-                                  "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace', 'id'),
+                                  "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace',),
                                   "special_columns": ('Ucetnictvi',),
-                                  "id_col": 20,
-                                  "id_col_name": 'id',
                                   },
-                    "dodavatele": {"id_col": 0,
-                                   "id_col_name": 'id',
-                                   },
-                    "zarizeni": {"id_col": 0,
-                                 "id_col_name": 'id',
-                                 },                    
-                    "varianty": {"id_col": 0,
-                                 "id_col_name": 'id',
-                                 },
                     }
     
 
@@ -201,8 +189,6 @@ class View:
         self.root = root
         self.controller = controller
         self.sort_reverse = False
-        self.id_col = None
-        self.id_col_name = None
         self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
@@ -228,7 +214,7 @@ class View:
         """
         Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
         """
-        self.curr_table_config = View.table_config[self.current_table]
+        self.curr_table_config = View.table_config.get(self.current_table, {})
         if self.current_table == "sklad":
             devices = tuple(self.controller.fetch_dict("zarizeni").keys())
             self.curr_table_config['check_columns'] = self.curr_table_config['check_columns'] + devices
@@ -236,8 +222,9 @@ class View:
         self.check_columns = self.curr_table_config.get("check_columns", [])
         self.hidden_columns = self.curr_table_config.get("hidden_columns", [])
         self.special_columns = self.curr_table_config.get("special_columns", [])
-        self.id_col = self.curr_table_config["id_col"]
-        self.id_col_name = self.curr_table_config["id_col_name"]     
+        self.id_col = 0
+        self.click_col = 0
+        self.id_col_name = self.curr_table_config.get("id_col_name", 'id')  
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
@@ -249,10 +236,6 @@ class View:
         self.additional_gui_elements()
         self.selected_option = "VŠE"
         self.start_date = None
-        self.tree.tag_configure('evenrow', background='#FFFFFF')
-        self.tree.tag_configure('oddrow', background='#F5F5F5')
-        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
-        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)   
         self.setup_columns(self.col_parameters())    
 
 
@@ -265,8 +248,7 @@ class View:
 
         common_menus = {
             "Soubor": [
-                ("Export aktuální databázové tabulky do csv", lambda: self.controller.export_csv(table=self.current_table)),
-                "separator",
+                (f"Export databáze {self.current_table} do csv", lambda: self.controller.export_csv(table=self.current_table)),
                 ("Export aktuálně vyfiltrovaných dat do csv", lambda: self.controller.export_csv(tree=self.tree)),
                 "separator",
                 ("Konec", self.root.destroy)
@@ -348,6 +330,11 @@ class View:
         self.scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side=tk.RIGHT, fill="y")
+
+        self.tree.tag_configure('evenrow', background='#FFFFFF')
+        self.tree.tag_configure('oddrow', background='#F5F5F5')
+        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
+        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)          
 
 
     def initialize_fonts(self):
@@ -511,12 +498,11 @@ class View:
         
         :param clicked_col: název sloupce, na který bylo kliknuto.
         """
-        if clicked_col == self.id_col:
+        if clicked_col == self.click_col:
             self.sort_reverse = not self.sort_reverse
         else:
-            self.id_col = clicked_col
+            self.click_col = clicked_col
             self.sort_reverse = False
-        print(f"{self.id_col=}, {self.id_num=}")
         self.controller.show_data(self.current_table)
 
         
@@ -529,7 +515,7 @@ class View:
 
         :param row: porovnávaný řádek / položka v datatabázi.
         """
-        value = row[self.id_col]
+        value = row[self.click_col]
         try:
             number = float(value)
             return (0, number)
@@ -611,8 +597,9 @@ class View:
         self.widget_destroy()
         self.item_frame_show = None
         varianty_table = "varianty"
-        varianty_check_columns = View.table_config[varianty_table].get("check_columns", [])
-        varianty_id_col_name = View.table_config[varianty_table]["id_col_name"]
+        varianty_table_config = View.table_config.get(varianty_table, {})
+        varianty_check_columns = varianty_table_config.get("check_columns", [])
+        varianty_id_col_name = varianty_table_config.get("id_col_name", "id")
         self.controller.add_variant(self.current_table, self.id_num, self.id_col_name, self.item_frame,
                                     self.tab2hum, varianty_check_columns, varianty_table, varianty_id_col_name)
       
@@ -929,7 +916,7 @@ class ZarizeniView(View):
         :return: Slovník parametrů menu k vytvoření specifických menu.
         """
         specialized_menus = {
-            "Dodavatelé": [
+            "Zařízení": [
                 ("Přidat zařízení", self.add_item),
                 ("Upravit zařízení", self.edit_selected_item),
             ],
@@ -979,11 +966,7 @@ class VariantyView(View):
         
         :return: Slovník parametrů menu k vytvoření specifických menu.
         """
-        specialized_menus = {
-            "Varianty": [
-                ("Upravit variantu", self.edit_selected_item),
-            ],
-        }
+        specialized_menus = {"Varianty": [("Upravit variantu", self.edit_selected_item),],}
         return specialized_menus
 
 
@@ -1011,12 +994,12 @@ class ItemFrameBase:
     """
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
-    table_config = {"sklad": {"order_of_name": 6, "id_col": 2, "id_col_name": "Evidencni_cislo",
-                              "quantity_col": 7, "unit_price_col": 33, "focus": 'Nazev_dilu',},
-                    "audit_log": {"order_of_name": 4, "id_col": 20, "id_col_name": "id",},
-                    "dodavatele": {"order_of_name": 1, "id_col": 0, "id_col_name": "id", "focus": 'Dodavatel',},
-                    "varianty": {"order_of_name": 3, "id_col": 0, "id_col_name": "id", "focus": 'Nazev_varianty',},
-                    "zarizeni": {"order_of_name": 1, "id_col": 0, "id_col_name": "id", "focus": 'Zarizeni',},
+    table_config = {"sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
+                              "unit_price_col": 33, "focus": 'Nazev_dilu',},
+                    "audit_log": {"order_of_name": 5, "id_col_name": "id",},
+                    "dodavatele": {"order_of_name": 1, "id_col_name": "id", "focus": 'Dodavatel',},
+                    "varianty": {"order_of_name": 3, "id_col_name": "id", "focus": 'Nazev_varianty',},
+                    "zarizeni": {"order_of_name": 1, "id_col_name": "id", "focus": 'Zarizeni',},
                     }
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
@@ -1347,7 +1330,7 @@ class ItemFrameEdit(ItemFrameBase):
         self.item_values = item_values
         self.init_curr_dict()        
         self.initialize_title()       
-        self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        self.id_num = self.item_values[0]
         self.show_for_editing()
 
 
@@ -1505,7 +1488,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.init_curr_dict()
         self.initialize_title()
         self.update_frames(action=self.action)         
-        self.id_num = self.item_values[self.curr_table_config["id_col"]]
+        self.id_num = self.item_values[0]
         self.id_col_name = self.curr_table_config["id_col_name"]
         self.entries_al = {}
         self.actual_quantity = int(self.item_values[self.curr_table_config["quantity_col"]])
@@ -1894,7 +1877,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.71 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.72 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
