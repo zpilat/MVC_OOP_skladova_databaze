@@ -171,6 +171,7 @@ class View:
                               "hidden_columns": ('Ucetnictvi', 'Kriticky_dil', 'Objednano',),
                               "special_columns": ('Ucetnictvi', 'Kriticky_dil',),
                               "id_col_name": 'Evidencni_cislo',
+                              "quantity_col": 7,
                               },
                     "audit_log": {"check_columns": ('Ucetnictvi',),
                                   "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace',),
@@ -219,6 +220,7 @@ class View:
             devices = tuple(self.controller.fetch_dict("zarizeni").keys())
             self.curr_table_config['check_columns'] = self.curr_table_config['check_columns'] + devices
             self.curr_table_config['hidden_columns'] = self.curr_table_config['hidden_columns'] + devices
+        self.mnozstvi_col = self.curr_table_config.get("quantity_col", [])
         self.check_columns = self.curr_table_config.get("check_columns", [])
         self.hidden_columns = self.curr_table_config.get("hidden_columns", [])
         self.special_columns = self.curr_table_config.get("special_columns", [])
@@ -550,7 +552,7 @@ class View:
         """
         try:
             selected_item = self.tree.selection()[0]
-            self.id_num = self.tree.item(selected_item, 'values')[self.id_col]
+            self.id_num = int(self.tree.item(selected_item, 'values')[self.id_col])
             return selected_item
         except IndexError:
             messagebox.showwarning("Upozornění", warning_message)
@@ -684,16 +686,17 @@ class SkladView(View):
         Vymaže označenou položku, pokud je to poslední zadaná položka a je nulový stav.
         """
         selected_item = self.select_item()
-        if selected_item is None: return
+        if selected_item is None:
+            return
         last_inserted_item = self.controller.get_max_id(self.current_table, self.id_col_name)
-        evidencni_cislo = self.tree.item(self.selected_item)['values'][2]
-        mnozstvi_ks_m_l = self.tree.item(self.selected_item)['values'][7]
-        if mnozstvi_ks_m_l != 0 or evidencni_cislo != last_inserted_item:
+        mnozstvi = self.tree.item(self.selected_item)['values'][self.mnozstvi_col]
+        print(f"{self.id_num=}, {last_inserted_item=}, {mnozstvi=}")
+        if mnozstvi != 0 or self.id_num != last_inserted_item:
             messagebox.showwarning("Varování", "Lze smazat pouze poslední zadanou položku s nulovým množstvím!")
             return           
         response = messagebox.askyesno("Potvrzení mazání", "Opravdu chcete smazat vybraný řádek?")
         if response: 
-            success = self.controller.delete_row(evidencni_cislo)
+            success = self.controller.delete_row(self.id_num)
             self.tree.delete(self.selected_item)
             self.mark_first_item()
             if success:
@@ -1140,9 +1143,7 @@ class ItemFrameBase:
         
         self.checkbutton_values = {col: (1 if state.get() else 0) for col, state in self.checkbutton_states.items()}
         combined_values = {**self.entry_values, **self.checkbutton_values}
-        print(combined_values)
         values_to_insert = [combined_values[col] for col in self.col_names]
-        print(values_to_insert)
                 
         if action == "add":
             success = self.controller.insert_new_item(self.current_table, self.col_names, values_to_insert)
@@ -1877,7 +1878,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.72 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.73 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
