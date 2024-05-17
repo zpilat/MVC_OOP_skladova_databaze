@@ -1067,7 +1067,7 @@ class ItemFrameBase:
         self.left_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
         self.right_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
-        self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
+        self.right_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=2, pady=2)
 
         if action:        
             self.bottom_frame = tk.Frame(self.show_frame)
@@ -1429,7 +1429,7 @@ class ItemFrameAdd(ItemFrameBase):
                                         "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
                                         },                            
                            "varianty": {"read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
-                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel',),
+                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel', 'Jednotkova_cena_EUR',),
                                         "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
                                         "not_neg_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
@@ -1649,6 +1649,16 @@ class ItemFrameMovements(ItemFrameBase):
             return
         messagebox.showinfo("Informace", f"Úspěšně proběhl {self.title.lower()} a zápis do audit logu!")
 
+        if self.action == "prijem":
+            id_sklad_value = self.id_num
+            dodavatel_value = self.values_to_sklad["Dodavatel"]
+            id_dodavatele_value = self.suppliers_dict[dodavatel_value]
+            exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, "varianty")
+            if not exists_variant:
+                messagebox.showinfo("Informace", "Varianta s tímto dodavatelem ještě neexistuje, prosím, vytvořte ji.")
+                self.current_view_instance.add_variant()
+                return
+
         self.controller.show_data(self.current_table)
         
 
@@ -1837,6 +1847,7 @@ class Controller:
         varianty_item_values = [sklad_values_dict.get(col, "") for col in varianty_col_names]
         varianty_item_values[0] = new_id
         varianty_item_values[1] = sklad_values_dict['Evidencni_cislo']
+        varianty_item_values[5] = ""
                                          
         self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, varianty_table,
                                                    varianty_check_columns, self.current_view_instance)
@@ -1846,6 +1857,8 @@ class Controller:
     def check_existence_of_variant(self, id_sklad_value, id_dodavatele_value, current_table):
         """
         Metoda, která ověří, zda varianta už neexistuje před uložením nové.
+
+        :return True, když varianta už v tabulce "varianty" existuje, jinak False.
         """
         exists_variant = self.model.check_existence(id_sklad_value, id_dodavatele_value, current_table)
         return exists_variant
@@ -1866,7 +1879,7 @@ class Controller:
         try:
             self.model.insert_item(table, columns, values_to_insert)
         except sqlite3.IntegrityError:
-            messagebox.showwarning("Varování", "Položka se zadaným evidenčním číslem už v databázi existuje.")
+            messagebox.showwarning("Varování", "Položka se zadaným ID číslem už v databázi existuje.")
             return False
         return True     
 
@@ -1949,7 +1962,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.90 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.91 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
