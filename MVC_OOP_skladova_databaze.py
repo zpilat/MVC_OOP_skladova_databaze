@@ -418,14 +418,8 @@ class View:
 
         sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
 
-        for idx, row in enumerate(sorted_data):
-            row_converted = list(row)
-            for index, col in enumerate(self.col_names):
-                if col in self.check_columns:
-                    row_converted[index] = "ANO" if row[index] == 1 else "NE"               
-
-            item_id = self.tree.insert('', tk.END, values=row_converted)
-
+        for idx, row in enumerate(sorted_data):      
+            item_id = self.tree.insert('', tk.END, values=row)
             stripe_tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             if self.current_table == 'sklad' and int(row[7]) < int(row[4]):
                 self.tree.item(item_id, tags=(stripe_tag, 'low_stock',))
@@ -578,8 +572,8 @@ class View:
             self.selected_item = self.tree.selection()[0]
             self.item_values = self.tree.item(self.selected_item, 'values')
             self.item_frame_show.show_selected_item_details(self.item_values)
-        except Exception:
-            messagebox.showwarning("Upozornění", "Žádná položka k zobrazení.")
+        except Exception as e:
+            messagebox.showwarning("Upozornění", f"Žádná položka k zobrazení.\n{e}")
             return
 
 
@@ -1054,7 +1048,7 @@ class ItemFrameBase:
         """
         Vytvoření a nastavení dalších framů v show_frame pro aktuální zobrazení.
 
-        :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu.
+        :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu, None - žádné.
         """
         self.top_frame = tk.Frame(self.show_frame, borderwidth=2, relief="groove")
         self.top_frame.pack(side=tk.TOP, fill=tk.X)     
@@ -1062,13 +1056,16 @@ class ItemFrameBase:
         self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
         self.right_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.right_frame.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=2)
-        self.bottom_frame = tk.Frame(self.show_frame)
-        self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
 
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=lambda: self.check_before_save(action=action))
-        save_btn.pack(side=tk.LEFT, padx=5, pady=5)
-        cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit", command=self.current_view_instance.show_selected_item)
-        cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        if action:        
+            self.bottom_frame = tk.Frame(self.show_frame)
+            self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
+            save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
+                                 command=lambda: self.check_before_save(action=action))
+            save_btn.pack(side=tk.LEFT, padx=5, pady=5)
+            cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit",
+                                   command=self.current_view_instance.show_selected_item)
+            cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
 
     def initialize_title(self, add_name_label=True):
@@ -1119,29 +1116,47 @@ class ItemFrameBase:
                     return
 
         if self.current_table=="zarizeni" and action=="add":
-            col = "Zarizeni"
-            entry_val = self.entries[col].get()
-            normalized = unicodedata.normalize('NFKD', entry_val).encode('ASCII', 'ignore').decode('ASCII')
-            final_val = normalized.upper().replace(" ", "_")
-            self.entries[col].delete(0, "end")
-            self.entries[col].insert(0, final_val)
-            if len(final_val) > 8:
-                messagebox.showwarning("Varování", f"Zkratka zařízení po normalizaci:\n{final_val}\n je delší než 10 znaků.")
-                self.entries[col].focus()
-                return
-            self.new_col_name = final_val          
-        
+            success = self.check_lenght()
+            if not success: return
+               
         if self.current_table=='varianty':
-            id_sklad_value = self.entries['id_sklad'].get()
-            id_dodavatele_value = self.entries['id_dodavatele'].get()
-            exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, self.current_table)
-            if exists_variant:
-                messagebox.showerror("Chyba", "Tato varianta již existuje.")
-                self.entries["Dodavatel"].focus()
-                return
-            self.col_names = self.col_names[:-2]
+            success = self.check_variant_existence()
+            if not success: return
             
         self.save_item(action)
+
+
+    def check_length(self):
+        """
+        Metoda pro kontrolu délky normalizované zkratky názvu zařízení.
+        """
+        col = "Zarizeni"
+        entry_val = self.entries[col].get()
+        normalized = unicodedata.normalize('NFKD', entry_val).encode('ASCII', 'ignore').decode('ASCII')
+        final_val = normalized.upper().replace(" ", "_")
+        self.entries[col].delete(0, "end")
+        self.entries[col].insert(0, final_val)
+        if len(final_val) > 8:
+            messagebox.showwarning("Varování", f"Zkratka zařízení po normalizaci:\n{final_val}\n je delší než 10 znaků.")
+            self.entries[col].focus()
+            return False
+        self.new_col_name = final_val
+        return True
+
+
+    def check_variant_existence(self):
+        """
+        Metoda pro kontrolu existence ukládané varianty.
+        """
+        id_sklad_value = self.entries['id_sklad'].get()
+        id_dodavatele_value = self.entries['id_dodavatele'].get()
+        exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, self.current_table)
+        if exists_variant:
+            messagebox.showerror("Chyba", "Tato varianta již existuje.")
+            self.entries["Dodavatel"].focus()
+            return False
+        self.col_names = self.col_names[:-2]
+        return True
 
 
     def save_item(self, action):
@@ -1262,6 +1277,7 @@ class ItemFrameShow(ItemFrameBase):
         for widget in self.show_frame.winfo_children():
             widget.destroy()  
 
+
     def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
@@ -1274,22 +1290,35 @@ class ItemFrameShow(ItemFrameBase):
     def show_selected_item_details(self, item_values):
         """
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
-        Název položky je v title_frame, zbylé informace v show_frame
+        Název položky je v title_frame, zbylé informace v show_frame.
+
+        :param item_values: n-tice řetězců obsahující hodnoty sloupců označené položky.
         """
-        self.item_values = item_values   
+        self.item_values = item_values
         self.clear_item_frame()
         self.init_curr_dict()
         self.initialize_title()
-          
-        for index, value in enumerate(self.item_values):
+        self.update_frames(action=None)
+        self.checkbutton_states = {}
+ 
+        for index, col in enumerate(self.col_names):
             if index == self.order_of_name: continue   # Vynechá název
-            idx = index - 1 if index > self.order_of_name else index 
-            col_num = idx % 2
-            row_num = idx // 2
-            col_name = self.tab2hum.get(self.col_names[index], self.col_names[index])
-            label_text = f"{col_name}: {value}"
-            label = tk.Label(self.show_frame, text=label_text, borderwidth=2, relief="ridge", width=28, wraplength=195)
-            label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
+            item_value = self.item_values[index]
+            item_text = self.tab2hum.get(col, col)
+            if col in self.check_columns:
+                frame = tk.Frame(self.right_frame)
+                item_state = int(item_value) == 1
+                self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
+                checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
+                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'): checkbutton.config(borderwidth=3, relief="groove")
+                checkbutton.config(state="disabled")
+                checkbutton.pack(side=tk.LEFT, padx=5)
+            else:
+                frame = tk.Frame(self.left_frame)
+                label_text = f"{item_text}:\n{item_value}"
+                label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
+                label.pack(side=tk.LEFT)
+            frame.pack(fill=tk.X)              
 
        
 class ItemFrameEdit(ItemFrameBase):
@@ -1901,7 +1930,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.80 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.81 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
