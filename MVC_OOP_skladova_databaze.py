@@ -641,21 +641,14 @@ class SkladView(View):
         
         :return: Slovník parametrů menu k vytvoření specifických menu.
         """
-        specialized_menus = {
-            "Skladové položky": [
-                ("Přidat skladovou položku", self.add_item),
-                ("Upravit skladovou položku", self.edit_selected_item),
-                "separator",
-                ("Smazat skladovou položku", self.delete_row),
-            ],
-            "Příjem/Výdej": [
-                ("Příjem zboží", lambda: self.item_movements(action='prijem')),
-                ("Výdej zboží", lambda: self.item_movements(action='vydej')), 
-            ],
-            "Varianty": [
-                ("Přidat variantu", self.add_variant),
-            ],            
-        }
+        specialized_menus = {"Skladové položky": [("Přidat skladovou položku", self.add_item),
+                                                  ("Upravit skladovou položku", self.edit_selected_item),
+                                                  "separator",
+                                                  ("Smazat skladovou položku", self.delete_row),],
+                             "Příjem/Výdej": [("Příjem zboží", lambda: self.item_movements(action='prijem')),
+                                              ("Výdej zboží", lambda: self.item_movements(action='vydej')),],
+                             "Varianty": [("Přidat variantu", self.add_variant),],
+                             }
         return specialized_menus
 
 
@@ -690,7 +683,6 @@ class SkladView(View):
             return
         last_inserted_item = self.controller.get_max_id(self.current_table, self.id_col_name)
         mnozstvi = self.tree.item(self.selected_item)['values'][self.mnozstvi_col]
-        print(f"{self.id_num=}, {last_inserted_item=}, {mnozstvi=}")
         if mnozstvi != 0 or self.id_num != last_inserted_item:
             messagebox.showwarning("Varování", "Lze smazat pouze poslední zadanou položku s nulovým množstvím!")
             return           
@@ -998,12 +990,13 @@ class ItemFrameBase:
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
     table_config = {"sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
-                              "unit_price_col": 33, "focus": 'Nazev_dilu',},
-                    "audit_log": {"order_of_name": 5, "id_col_name": "id",},
-                    "dodavatele": {"order_of_name": 1, "id_col_name": "id", "focus": 'Dodavatel',},
-                    "varianty": {"order_of_name": 3, "id_col_name": "id", "focus": 'Nazev_varianty',},
-                    "zarizeni": {"order_of_name": 1, "id_col_name": "id", "focus": 'Zarizeni',},
+                              "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
+                    "audit_log": {"order_of_name": 5, "id_col_name": "id", "name": "POHYBU NA SKLADĚ",},
+                    "dodavatele": {"order_of_name": 1, "id_col_name": "id", "focus": 'Dodavatel', "name": "DODAVATELE",},
+                    "varianty": {"order_of_name": 3, "id_col_name": "id", "focus": 'Nazev_varianty', "name": "VARIANTY",},
+                    "zarizeni": {"order_of_name": 1, "id_col_name": "id", "focus": 'Zarizeni', "name": "ZAŘÍZENÍ",},
                     }
+
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
@@ -1073,7 +1066,6 @@ class ItemFrameBase:
         """
         Vytvoření nadpisu dle typu zobrazovaných dat.
         """
-        self.title = self.curr_entry_dict["title"]
         self.order_of_name = self.curr_table_config["order_of_name"]
 
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
@@ -1249,13 +1241,9 @@ class ItemFrameShow(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.entry_dict = {"sklad": {"title": "ZOBRAZENÍ SKLADOVÉ KARTY"},
-                           "audit_log": {"title": "ZOBRAZENÍ POHYBU NA SKLADĚ"},
-                           "dodavatele": {"title": "ZOBRAZENÍ DODAVATELE"},
-                           "varianty": {"title": "ZOBRAZENÍ VARIANTY"},
-                           "zarizeni": {"title": "ZOBRAZENÍ ZAŘÍZENÍ"},
-                           }
-        self.curr_entry_dict = self.entry_dict[self.current_table]
+        self.entry_dict = {}
+        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
+        self.title = "ZOBRAZENÍ " + str(self.curr_table_config["name"])
                            
 
     def show_selected_item_details(self, item_values):
@@ -1299,27 +1287,24 @@ class ItemFrameEdit(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.entry_dict = {"sklad": {"title": "ÚPRAVA SKLADOVÉ KARTY",
-                                     "read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
+        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
                                                    'Datum_nakupu', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
                                      "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu',),
                                      "not_neg_integer": ('Interne_cislo', 'Min_Mnozstvi_ks',),
                                      },
-                           "dodavatele": {"title": "ÚPRAVA DODAVATELE",
-                                          "read_only": ('id', 'Dodavatel'),
+                           "dodavatele": {"read_only": ('id', 'Dodavatel'),
                                           },
-                           "zarizeni": {"title": "ÚPRAVA ZAŘÍZENÍ",
-                                          "read_only": ('id', 'Zarizeni'),
-                                          "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),                                           
-                                          },                           
-                           "varianty": {"title": "ÚPRAVA VARIANTY",
-                                        "read_only": ('id', 'id_sklad', 'id_dodavatele',),
+                           "zarizeni": {"read_only": ('id', 'Zarizeni'),
+                                        "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
+                                        },                           
+                           "varianty": {"read_only": ('id', 'id_sklad', 'id_dodavatele',),
                                         "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
                                         "pos_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
                                         }
                            }
-        self.curr_entry_dict = self.entry_dict[self.current_table]
+        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
+        self.title = "ÚPRAVA " + str(self.curr_table_config["name"])        
 
 
     def open_edit_window(self, item_values):
@@ -1357,8 +1342,7 @@ class ItemFrameAdd(ItemFrameBase):
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
         self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.entry_dict = {"sklad": {"title": "VYTVOŘENÍ  SKLADOVÉ KARTY",
-                                     "read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
+        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
                                                    'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky', 'Jednotky', 'Dodavatel',),
                                      "pack_forget": ('Objednano', 'Mnozstvi_ks_m_l', 'Datum_nakupu', 'Cislo_objednavky',
                                                      'Jednotkova_cena_EUR', 'Celkova_cena_EUR',),
@@ -1367,18 +1351,15 @@ class ItemFrameAdd(ItemFrameBase):
                                      "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu', 'Jednotky',),
                                      "not_neg_integer":('Min_Mnozstvi_ks',),
                                      },                                 
-                           "dodavatele": {"title": "VYTVOŘENÍ DODAVATELE",
-                                          "read_only": ('id',),
+                           "dodavatele": {"read_only": ('id',),
                                           "insert": {'id': self.new_id},
                                           "mandatory": ('Dodavatel',),
                                           },
-                           "zarizeni": {"title": "VYTVOŘENÍ ZAŘÍZENÍ",
-                                          "read_only": ('id',),
-                                          "insert": {'id': self.new_id},
-                                          "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),                                        
-                                          },                            
-                           "varianty": {"title": "VYTVOŘENÍ VARIANTY",
-                                        "read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
+                           "zarizeni": {"read_only": ('id',),
+                                        "insert": {'id': self.new_id},
+                                        "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
+                                        },                            
+                           "varianty": {"read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
                                         "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel',),
                                         "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
                                         "not_neg_real":('Jednotkova_cena_EUR',),
@@ -1386,7 +1367,8 @@ class ItemFrameAdd(ItemFrameBase):
                                         "calculate": 'id_dodavatele',
                                         },
                            }
-        self.curr_entry_dict = self.entry_dict[self.current_table]
+        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
+        self.title = "VYTVOŘENÍ " + str(self.curr_table_config["name"])        
 
 
     def add_item(self, new_id, new_interne_cislo):
@@ -1463,15 +1445,15 @@ class ItemFrameMovements(ItemFrameBase):
                       },
             }              
         self.title = self.action_dict[self.current_table][self.action]["actual_value"]['Typ_operace']
-        self.entry_dict = {"sklad": {"title": f"{self.title} ZBOŽÍ",
-                                     "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
+        self.entry_dict = {"sklad": {"read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
                                                    'Mnozstvi_ks_m_l', 'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni',
                                                    'Dodavatel'),
                                      "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
                                                            'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano',
                                                            'Poznamka', 'Nazev_dilu'),
                                      },
-                           }  
+                           }
+        self.title = f"{self.title} ZBOŽÍ"       
         self.curr_entry_dict = self.entry_dict[self.current_table] | self.action_dict[self.current_table][self.action]
         self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())+("Neuvedeno",)
 
@@ -1878,7 +1860,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.73 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.74 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
