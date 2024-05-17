@@ -530,8 +530,9 @@ class View:
         """
         Označení první položky v Treeview po načtení nových dat.
         """
-        first_item = self.tree.get_children()[0] if self.tree.get_children() else None
-        if first_item:
+        children = self.tree.get_children()
+        if children:
+            first_item = children[0]
             self.tree.selection_set(first_item)
             self.tree.focus(first_item)
 
@@ -568,12 +569,23 @@ class View:
             self.widget_destroy()
             self.item_frame_show = ItemFrameShow(self.item_frame, self.controller, self.col_names,
                                                  self.tab2hum, self.current_table, self.check_columns)
-        try:
-            self.selected_item = self.tree.selection()[0]
+            
+        children = self.tree.get_children()
+        if not children:
+            messagebox.showwarning("Upozornění", "Nejsou žádné položky k zobrazení.")
+            return
+        
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Upozornění", "Není vybrána žádná položka k zobrazení.")
+            return
+        
+        try:        
+            self.selected_item = selected_items[0]
             self.item_values = self.tree.item(self.selected_item, 'values')
             self.item_frame_show.show_selected_item_details(self.item_values)
         except Exception as e:
-            messagebox.showwarning("Upozornění", f"Žádná položka k zobrazení.\n{e}")
+            messagebox.showwarning("Upozornění", f"Při zobrazování došlo k chybě {e}.")
             return
 
 
@@ -1213,23 +1225,23 @@ class ItemFrameBase:
                 start_value = self.item_values[index] if self.item_values else ""
                 match col:                          
                     case 'Min_Mnozstvi_ks' | 'Min_obj_mnozstvi':
-                        entry = tk.Spinbox(frame, width=32, from_=0, to='infinity')
+                        entry = tk.Spinbox(frame, from_=0, to='infinity')
                         if self.item_values:
                             entry.delete(0, "end")
                             entry.insert(0, self.item_values[index])                
                     case 'Jednotky':
-                        entry = ttk.Combobox(frame, width=31, values=self.unit_tuple)
+                        entry = ttk.Combobox(frame, values=self.unit_tuple)
                         entry.set(start_value)                         
                     case 'Dodavatel' if self.current_table in ['sklad', 'varianty']:
-                        entry = ttk.Combobox(frame, width=31, values=self.suppliers)
+                        entry = ttk.Combobox(frame, values=self.suppliers)
                         entry.set(start_value)
                         if self.current_table=='varianty':
                             entry.bind("<<ComboboxSelected>>", lambda event, entry=entry: self.supplier_number(entry))
                     case _:
-                        entry = tk.Entry(frame, width=34)
+                        entry = tk.Entry(frame)
                         if self.item_values:
                             entry.insert(0, self.item_values[index])                                              
-                entry.pack(side=tk.LEFT, padx=2, pady=3)
+                entry.pack(fill=tk.X, padx=2, pady=3)
                 entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
                 entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
                 self.entries[col] = entry
@@ -1311,13 +1323,15 @@ class ItemFrameShow(ItemFrameBase):
                 self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
                 checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
                 if (col == 'Ucetnictvi' or col == 'Kriticky_dil'): checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.config(state="disabled")
+                checkbutton.config(state="normal")
                 checkbutton.pack(side=tk.LEFT, padx=5)
+                checkbutton.bind("<Enter>", lambda event, cb=checkbutton: cb.config(state="disabled"))
+                checkbutton.bind("<Leave>", lambda event, cb=checkbutton: cb.config(state="normal"))
             else:
                 frame = tk.Frame(self.left_frame)
                 label_text = f"{item_text}:\n{item_value}"
                 label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
-                label.pack(side=tk.LEFT)
+                label.pack(fill=tk.X)
             frame.pack(fill=tk.X)              
 
        
@@ -1539,18 +1553,19 @@ class ItemFrameMovements(ItemFrameBase):
         
         for idx, col in enumerate(self.audit_log_col_names):
             if col in self.col_names:
-                index = self.col_names.index(col) 
-            label = tk.Label(self.left_frame, text=self.tab2hum.get(col, col), width=20)
-            label.grid(row=idx, column=0, sticky="nsew", padx=5, pady=2)
+                index = self.col_names.index(col)
+            self.left_frame.columnconfigure(1, weight=1)
+            label = tk.Label(self.left_frame, text=self.tab2hum.get(col, col))
+            label.grid(row=idx, column=0, sticky="ew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
-                entry_al = ttk.Combobox(self.left_frame, width=37, values=self.devices)             
+                entry_al = ttk.Combobox(self.left_frame,values=self.devices)             
                 entry_al.set("")
             elif col == 'Dodavatel':
-                entry_al = ttk.Combobox(self.left_frame, width=37, values=self.suppliers)
+                entry_al = ttk.Combobox(self.left_frame, values=self.suppliers)
                 entry_al.set(self.item_values[index])
             else:
-                entry_al = tk.Entry(self.left_frame, width=40)                        
-            entry_al.grid(row=idx, column=1, sticky="nsew", padx=5, pady=2)
+                entry_al = tk.Entry(self.left_frame)                        
+            entry_al.grid(row=idx, column=1, sticky="ew", padx=5, pady=2)
             entry_al.bind('<Return>', lambda event: self.check_before_save(action=self.action))
             entry_al.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
             
@@ -1629,7 +1644,7 @@ class ItemFrameMovements(ItemFrameBase):
         success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
         if not success:
             return
-        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[:-1], self.values_to_audit_log[:-1])
+        success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[1:], self.values_to_audit_log[1:])
         if not success:
             return
         messagebox.showinfo("Informace", f"Úspěšně proběhl {self.title.lower()} a zápis do audit logu!")
@@ -1783,7 +1798,8 @@ class Controller:
         col_names = self.model.fetch_col_names(table)
         audit_log_col_names = self.model.fetch_col_names("audit_log")
 
-        self.current_item_instance = ItemFrameMovements(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
+        self.current_item_instance = ItemFrameMovements(master, self, col_names, tab2hum, table,
+                                                        check_columns, self.current_view_instance)
         self.current_item_instance.enter_item_movements(action, item_values, audit_log_col_names)
 
 
@@ -1800,11 +1816,13 @@ class Controller:
         new_id = str(self.model.get_max_id(table, id_col_name) + 1)
         col_names = self.model.fetch_col_names(table)
         
-        self.current_item_instance = ItemFrameAdd(master, self, col_names, tab2hum, table, check_columns, self.current_view_instance)
+        self.current_item_instance = ItemFrameAdd(master, self, col_names, tab2hum, table,
+                                                  check_columns, self.current_view_instance)
         self.current_item_instance.add_item(new_id, new_interne_cislo)
 
 
-    def add_variant(self, table, id_num, id_col_name, master, tab2hum, varianty_check_columns, varianty_table, varianty_id_col_name):
+    def add_variant(self, table, id_num, id_col_name, master, tab2hum, varianty_check_columns,
+                    varianty_table, varianty_id_col_name):
         """
         Získání dat a zobrazení vybrané položky pro vytvoření nové varianty.
         
@@ -1831,6 +1849,7 @@ class Controller:
         """
         exists_variant = self.model.check_existence(id_sklad_value, id_dodavatele_value, current_table)
         return exists_variant
+
 
     def insert_new_item(self, table, columns, values_to_insert):
         """
@@ -1930,7 +1949,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.81 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.90 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
