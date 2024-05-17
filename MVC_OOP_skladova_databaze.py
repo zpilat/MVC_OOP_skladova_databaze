@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import os
 import re
 import sys
+import unicodedata
 
 class Model:
     """
@@ -146,6 +147,17 @@ class Model:
         self.conn.commit()
 
 
+    def add_integer_column_with_default(self, new_col_name):
+        """
+        Přidá nový sloupec typu Integer do tabulky 'sklad' s výchozí hodnotou 0.
+        
+        :param new_col_name: Název nového sloupce, který má být přidán.
+        """
+        alter_table_query = f"ALTER TABLE sklad ADD COLUMN {new_col_name} INTEGER DEFAULT 0"
+        self.cursor.execute(alter_table_query)
+        self.conn.commit() 
+
+
     def delete_row(self, evidencni_cislo):
         """
         Smaže řádek ze skladu na základě jeho evidenčního čísla - ve sloupci Evidencni_cislo.      
@@ -194,21 +206,16 @@ class View:
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
                         'Nazev_dilu': 'Název dílu', 'Mnozstvi_ks_m_l': 'Akt. množství', 'Jednotky':'Jedn.',
-                        'HSH': 'HSH', 'TQ8': 'TQ8', 'TQF_XL_I': 'TQF XL I', 'TQF_XL_II': 'TQF XL II',
-                        'DC_XL': 'DC XL', 'DAC_XLI_a_II': 'DAC XLI a II', 'DL_XL': 'DL XL', 'DAC': 'DAC',
-                        'LAC_I': 'LAC I', 'LAC_II': 'LAC II', 'IPSEN_ENE': 'IPSEN ENE', 'HSH_ENE': 'HSH ENE',
-                        'XL_ENE1': 'XL ENE1', 'XL_ENE2': 'XL ENE2', 'IPSEN_W': 'IPSEN W', 'HSH_W': 'HSH W',
-                        'KW': 'KW', 'KW1': 'KW1', 'KW2': 'KW2', 'KW3': 'KW3', 'Umisteni': 'Umístění',
-                        'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu', 'Cislo_objednavky': 'Objednávka',
-                        'Jednotkova_cena_EUR': 'EUR/jednotka', 'Celkova_cena_EUR': 'Celkem EUR',
-                        'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství', 'Cas_operace': 'Čas operace',
-                        'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
+                        'Umisteni': 'Umístění', 'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu',
+                        'Cislo_objednavky': 'Objednávka', 'Jednotkova_cena_EUR': 'EUR/jednotka',
+                        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství',
+                        'Cas_operace': 'Čas operace', 'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
                         'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
                         'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
-                        'Pod_minimem': 'Pod minimem', 'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele',
-                        'Nazev_varianty': 'Název varianty', 'Cislo_varianty': 'Číslo varianty',
-                        'Dodaci_lhuta': 'Dod. lhůta dnů', 'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení',
-                        'Nazev_zarizeni': 'Název zařízení', 'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení',}
+                        'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele', 'Nazev_varianty': 'Název varianty',
+                        'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
+                        'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
+                        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení',}
 
         
     def customize_ui(self):
@@ -304,20 +311,20 @@ class View:
         self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
 
         if self.current_table == 'sklad':
-            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum['Pod_minimem'],
-                                                   variable=self.filter_low_stock, borderwidth=3, relief="groove", onvalue=True,
-                                                   offvalue=False, command=lambda: self.controller.show_data(self.current_table))
+            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text='Pod_minimem', variable=self.filter_low_stock,
+                                                   borderwidth=3, relief="groove", onvalue=True, offvalue=False,
+                                                   command=lambda: self.controller.show_data(self.current_table))
             low_stock_checkbutton.pack(side='left', padx=5, pady=5)
             
         for col in self.filter_columns:
             if col in self.special_columns:
-                checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
+                checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
                                              borderwidth=3, relief="groove", onvalue=True, offvalue=False,
                                              command=lambda col=col: self.toggle_filter(col))
             else:
-                checkbutton = tk.Checkbutton(self.check_buttons_frame, text=self.tab2hum[col], variable=self.filter_columns[col],
+                checkbutton = tk.Checkbutton(self.check_buttons_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
                                              onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
-            checkbutton.pack(side='left', padx=5, pady=5)
+            checkbutton.pack(side='left', pady=5)
 
 
     def initialize_treeview(self, tree_frame):
@@ -390,7 +397,7 @@ class View:
         """
         self.tree['columns'] = self.col_names
         for idx, col in enumerate(self.col_names):            
-            self.tree.heading(col, text=self.tab2hum[col], command=lambda c=idx: self.on_column_click(c))
+            self.tree.heading(col, text=self.tab2hum.get(col, col), command=lambda c=idx: self.on_column_click(c))
             self.tree.column(col, **col_params[idx])
    
 
@@ -447,12 +454,12 @@ class View:
         
         if self.current_table == "audit_log":
             if self.selected_option == "PŘÍJEM":
-                filtered_data = [row for row in filtered_data if row[8] == "PŘÍJEM"]
+                filtered_data = [row for row in filtered_data if row[9] == "PŘÍJEM"]
             elif self.selected_option == "VÝDEJ":
-                filtered_data = [row for row in filtered_data if row[8] == "VÝDEJ"]
+                filtered_data = [row for row in filtered_data if row[9] == "VÝDEJ"]
 
         if self.start_date:       
-            filtered_data = [row for row in filtered_data if self.start_date <= (row[12] or row[13]) <= self.end_date]
+            filtered_data = [row for row in filtered_data if self.start_date <= (row[13] or row[14]) <= self.end_date]
             
         if any(value.get() for value in self.filter_columns.values()):          
             filtered_data_temp = []
@@ -582,7 +589,8 @@ class View:
         pro editaci.
         """
         selected_item = self.select_item()
-        if selected_item is None: return       
+        if selected_item is None:
+            return       
         self.widget_destroy()    
         self.item_frame_show = None
         self.controller.show_data_for_editing(self.current_table, self.id_num, self.id_col_name,
@@ -989,13 +997,14 @@ class ItemFrameBase:
     """
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
-    table_config = {"sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
-                              "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
-                    "audit_log": {"order_of_name": 5, "id_col_name": "id", "name": "POHYBU NA SKLADĚ",},
-                    "dodavatele": {"order_of_name": 1, "id_col_name": "id", "focus": 'Dodavatel', "name": "DODAVATELE",},
-                    "varianty": {"order_of_name": 3, "id_col_name": "id", "focus": 'Nazev_varianty', "name": "VARIANTY",},
-                    "zarizeni": {"order_of_name": 1, "id_col_name": "id", "focus": 'Zarizeni', "name": "ZAŘÍZENÍ",},
-                    }
+    table_config = {
+        "sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
+                  "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
+        "audit_log": {"order_of_name": 5, "name": "POHYBU NA SKLADĚ",},
+        "dodavatele": {"order_of_name": 1, "focus": 'Dodavatel', "name": "DODAVATELE",},
+        "varianty": {"order_of_name": 3, "focus": 'Nazev_varianty', "name": "VARIANTY",},
+        "zarizeni": {"order_of_name": 1, "focus": 'Zarizeni', "name": "ZAŘÍZENÍ",},
+        }
 
     def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
         """
@@ -1067,7 +1076,6 @@ class ItemFrameBase:
         Vytvoření nadpisu dle typu zobrazovaných dat.
         """
         self.order_of_name = self.curr_table_config["order_of_name"]
-
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
         title_label.pack(padx=2, pady=2)
         if add_name_label:
@@ -1084,14 +1092,14 @@ class ItemFrameBase:
         """
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries[col].get():
-                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
+                messagebox.showwarning("Chyba", f"Před uložením nejdříve zadejte položku {self.tab2hum.get(col, col)}")
                 self.entries[col].focus()
                 return
             
         for col in self.curr_entry_dict.get("not_neg_integer", []):
             entry_val = self.entries[col].get()
             if not entry_val.isdigit() or int(entry_val) < 0:
-                messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být celé nezáporné číslo.")
+                messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} musí být celé nezáporné číslo.")
                 self.entries[col].focus()
                 return
             
@@ -1101,21 +1109,35 @@ class ItemFrameBase:
                 try:
                     float_entry_val = float(entry_val)
                     if col in self.curr_entry_dict.get("pos_real", []) and float_entry_val <= 0:
-                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
+                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} musí být kladné reálné číslo s desetinnou tečkou.")
                         return
                     if col in self.curr_entry_dict.get("not_neg_real", []) and float_entry_val < 0:
-                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} musí být nezáporné reálné číslo s desetinnou tečkou.")
+                        messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} musí být nezáporné reálné číslo s desetinnou tečkou.")
                         return 
                 except ValueError:
-                    messagebox.showwarning("Chyba", f"Položka {self.tab2hum[col]} není platné reálné číslo s desetinnou tečkou.")
+                    messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} není platné reálné číslo s desetinnou tečkou.")
                     return
 
+        if self.current_table=="zarizeni" and action=="add":
+            col = "Zarizeni"
+            entry_val = self.entries[col].get()
+            normalized = unicodedata.normalize('NFKD', entry_val).encode('ASCII', 'ignore').decode('ASCII')
+            final_val = normalized.upper().replace(" ", "_")
+            self.entries[col].delete(0, "end")
+            self.entries[col].insert(0, final_val)
+            if len(final_val) > 8:
+                messagebox.showwarning("Varování", f"Zkratka zařízení po normalizaci:\n{final_val}\n je delší než 10 znaků.")
+                self.entries[col].focus()
+                return
+            self.new_col_name = final_val          
+        
         if self.current_table=='varianty':
             id_sklad_value = self.entries['id_sklad'].get()
             id_dodavatele_value = self.entries['id_dodavatele'].get()
             exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, self.current_table)
             if exists_variant:
-                messagebox.showwarning("Chyba", "Tato varianta již existuje.")
+                messagebox.showerror("Chyba", "Tato varianta již existuje.")
+                self.entries["Dodavatel"].focus()
                 return
             self.col_names = self.col_names[:-2]
             
@@ -1138,9 +1160,12 @@ class ItemFrameBase:
         values_to_insert = [combined_values[col] for col in self.col_names]
                 
         if action == "add":
+            if self.current_table == 'zarizeni':
+                success = self.controller.add_column_and_set_default(self.new_col_name)
+                if not success: return
             success = self.controller.insert_new_item(self.current_table, self.col_names, values_to_insert)
         elif action == "edit" and self.id_num is not None:
-            success = self.controller.update_row(self.current_table, self.id_num, self.curr_table_config["id_col_name"], combined_values)
+            success = self.controller.update_row(self.current_table, self.id_num, self.id_col_name, combined_values)
         if not success:
             return
             
@@ -1162,13 +1187,13 @@ class ItemFrameBase:
                     self.checkbutton_states[col] = tk.BooleanVar(value=self.item_values[index] == 1)
                 else:
                     self.checkbutton_states[col] = tk.BooleanVar(value=True) if col == 'Ucetnictvi' else tk.BooleanVar(value=False)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum[col], variable=self.checkbutton_states[col])
+                checkbutton = tk.Checkbutton(frame, text=self.tab2hum.get(col, col), variable=self.checkbutton_states[col])
                 if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
                     checkbutton.config(borderwidth=3, relief="groove")
                 checkbutton.pack(side=tk.LEFT, padx=5)
             else:
                 frame = tk.Frame(self.left_frame)
-                label = tk.Label(frame, text=self.tab2hum[col], width=12)
+                label = tk.Label(frame, text=self.tab2hum.get(col, col), width=12)
                 label.pack(side=tk.LEFT)
                 start_value = self.item_values[index] if self.item_values else ""
                 match col:                          
@@ -1261,7 +1286,7 @@ class ItemFrameShow(ItemFrameBase):
             idx = index - 1 if index > self.order_of_name else index 
             col_num = idx % 2
             row_num = idx // 2
-            col_name = self.tab2hum[self.col_names[index]]
+            col_name = self.tab2hum.get(self.col_names[index], self.col_names[index])
             label_text = f"{col_name}: {value}"
             label = tk.Label(self.show_frame, text=label_text, borderwidth=2, relief="ridge", width=28, wraplength=195)
             label.grid(row=row_num, column=col_num, sticky="nsew", padx=5, pady=2)
@@ -1317,6 +1342,7 @@ class ItemFrameEdit(ItemFrameBase):
         self.init_curr_dict()        
         self.initialize_title()       
         self.id_num = self.item_values[0]
+        self.id_col_name = self.curr_table_config.get("id_col_name", "id")
         self.show_for_editing()
 
 
@@ -1472,7 +1498,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.initialize_title()
         self.update_frames(action=self.action)         
         self.id_num = self.item_values[0]
-        self.id_col_name = self.curr_table_config["id_col_name"]
+        self.id_col_name = self.curr_table_config.get("id_col_name", "id")
         self.entries_al = {}
         self.actual_quantity = int(self.item_values[self.curr_table_config["quantity_col"]])
         self.actual_unit_price = float(self.item_values[self.curr_table_config["unit_price_col"]])
@@ -1485,7 +1511,7 @@ class ItemFrameMovements(ItemFrameBase):
         for idx, col in enumerate(self.audit_log_col_names):
             if col in self.col_names:
                 index = self.col_names.index(col) 
-            label = tk.Label(self.left_frame, text=self.tab2hum[col], width=20)
+            label = tk.Label(self.left_frame, text=self.tab2hum.get(col, col), width=20)
             label.grid(row=idx, column=0, sticky="nsew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
                 entry_al = ttk.Combobox(self.left_frame, width=37, values=self.devices)             
@@ -1531,13 +1557,13 @@ class ItemFrameMovements(ItemFrameBase):
         
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries_al[col].get():
-                self.show_warning(col, f"Před uložením nejdříve zadejte položku {self.tab2hum[col]}")
+                self.show_warning(col, f"Před uložením nejdříve zadejte položku {self.tab2hum.get(col, col)}")
                 return
             
         for col in self.curr_entry_dict.get("pos_integer", []):
             entry_val = self.entries_al[col].get()
             if not entry_val.isdigit() or int(entry_val) <= 0:
-                self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné celé číslo.")
+                self.show_warning(col, f"Položka {self.tab2hum.get(col, col)} musí být kladné celé číslo.")
                 return
 
         self.quantity_change = int(self.entries_al['Zmena_mnozstvi'].get())
@@ -1552,10 +1578,10 @@ class ItemFrameMovements(ItemFrameBase):
             try:
                 float_entry_val = float(entry_val)
                 if float_entry_val <= 0:
-                    self.show_warning(col, f"Položka {self.tab2hum[col]} musí být kladné reálné číslo s desetinnou tečkou.")
+                    self.show_warning(col, f"Položka {self.tab2hum.get(col, col)} musí být kladné reálné číslo s desetinnou tečkou.")
                     return
             except ValueError:
-                self.show_warning(col, f"Položka {self.tab2hum[col]} není platné kladné reálné číslo s desetinnou tečkou.")
+                self.show_warning(col, f"Položka {self.tab2hum.get(col, col)} není platné kladné reálné číslo s desetinnou tečkou.")
                 return
 
         for col in self.curr_entry_dict.get("date", []):
@@ -1825,6 +1851,21 @@ class Controller:
             messagebox.showwarning("Varování", f"Chyba při ukládání dat do databáze: {e}!")
             return False
         return True
+
+
+    def add_column_and_set_default(self, new_col_name):
+        """
+        Řídí proces přidání nového sloupce do tabulky 'sklad' a nastavení jeho výchozích hodnot.
+
+        :param new_col_name: Název nového sloupce, který má být přidán.
+        """
+        try:
+            self.model.add_integer_column_with_default(new_col_name)
+            messagebox.showinfo("Informace", f"Sloupec {new_col_name} byl úspěšně přidán do tabulky sklad s výchozími hodnotami 0.")
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nastala chyba při přidávání sloupce {new_col_name}: {e}")
+            return False
+        return True            
     
 
     def export_csv(self, table=None, tree=None):
@@ -1860,7 +1901,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.74 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.80 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
