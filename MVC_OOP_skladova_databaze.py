@@ -210,6 +210,8 @@ class View:
                                   "special_columns": ('Ucetnictvi',),
                                   },
                     "varianty": {"check_columns": ('Pod_minimem',),
+                                 "hidden_columns": ('Pod_minimem',),
+                                 "special_columns": ('Pod_minimem',),                                  
                                  }
                     }
     
@@ -238,7 +240,8 @@ class View:
                         'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
                         'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
                         'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'}
-
+        self.suppliers_dict = self.controller.fetch_dict("dodavatele")
+        self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
         
     def customize_ui(self):
         """
@@ -406,11 +409,13 @@ class View:
         """
         pass
 
+
     def additional_gui_elements(self):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
         pass
+
 
     def setup_columns(self, col_params):
         """
@@ -422,6 +427,14 @@ class View:
         for idx, col in enumerate(self.col_names):            
             self.tree.heading(col, text=self.tab2hum.get(col, col), command=lambda c=idx: self.on_column_click(c))
             self.tree.column(col, **col_params[idx])
+
+
+    def on_combobox_change(self, event):
+        """
+        Filtrování zobrazovaných dat podle eventu (vybraného filtru) comboboxu.
+        """
+        self.selected_option = self.operation_combobox.get()         
+        self.controller.show_data(self.current_table)            
    
 
     def add_data(self, current_data=None):
@@ -455,7 +468,8 @@ class View:
         """
         Vyfiltrování dat podle zadaných dat v search_entry ve všech tabulkách.
         V tabulce sklad navíc dle zaškrtnutých check buttonů a low stock filtru.
-        V tabulce audit_log navíc dle comboboxu "VŠE" a v rozmezí datumů v date entry.
+        V tabulce audit_log navíc dle comboboxu typ akce a v rozmezí datumů v date entry.
+        V tabulce varianty dle comboboxu dodavatelé.
 
         :param data: Data pro filtraci dle search entry.
         :return: Přefiltrovaná data.
@@ -470,10 +484,12 @@ class View:
             filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
         
         if self.current_table == "audit_log":
-            if self.selected_option == "PŘÍJEM":
-                filtered_data = [row for row in filtered_data if row[9] == "PŘÍJEM"]
-            elif self.selected_option == "VÝDEJ":
-                filtered_data = [row for row in filtered_data if row[9] == "VÝDEJ"]
+            if self.selected_option in ["PŘÍJEM", "VÝDEJ"]:
+                filtered_data = [row for row in filtered_data if row[9] == self.selected_option]
+
+        if self.current_table == "varianty":
+            if self.selected_option in self.suppliers:
+                filtered_data = [row for row in filtered_data if row[-2] == self.selected_option]            
 
         if self.start_date:       
             filtered_data = [row for row in filtered_data if self.start_date <= (row[13] or row[14]) <= self.end_date]
@@ -783,8 +799,8 @@ class AuditLogView(View):
         self.operation_label = tk.Label(self.search_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
-        self.operation_combobox = ttk.Combobox(self.search_frame, values=self.options, state="readonly")
+        options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
+        self.operation_combobox = ttk.Combobox(self.search_frame, values=options, state="readonly")
         self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
 
         self.operation_combobox.set("VŠE")
@@ -839,14 +855,6 @@ class AuditLogView(View):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             self.end_date = end_date.strftime('%Y-%m-%d')
 
-        self.controller.show_data(self.current_table)
-
-
-    def on_combobox_change(self, event):
-        """
-        Filtrování zobrazovaných dat podle eventu (vybraného filtru) comboboxu.
-        """
-        self.selected_option = self.operation_combobox.get()         
         self.controller.show_data(self.current_table)
 
 
@@ -989,7 +997,22 @@ class VariantyView(View):
         super().__init__(root, controller)
         self.current_table = 'varianty'
         self.col_names = col_names
-        self.customize_ui()   
+        self.customize_ui()
+
+
+    def additional_gui_elements(self):
+        """
+        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        """
+        self.operation_label = tk.Label(self.search_frame, text="Dodavatel:")
+        self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
+
+        options = ("VŠE",) + self.suppliers
+        self.operation_combobox = ttk.Combobox(self.search_frame, values=options, state="readonly")
+        self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
+
+        self.operation_combobox.set("VŠE")
+        self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)        
 
 
     def spec_menus(self):
@@ -1150,13 +1173,14 @@ class ItemFrameBase:
                     messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} není platné reálné číslo s desetinnou tečkou.")
                     return
 
-        if self.current_table=="zarizeni" and action=="add":
-            success = self.check_lenght()
-            if not success: return
+        if action=="add":
+            if self.current_table=="zarizeni":
+                success = self.check_lenght()
+                if not success: return
                
-        if self.current_table=='varianty':
-            success = self.check_variant_existence()
-            if not success: return
+            if self.current_table=='varianty':
+                success = self.check_variant_existence()
+                if not success: return
             
         self.save_item(action)
 
@@ -1488,7 +1512,7 @@ class ItemFrameAdd(ItemFrameBase):
         self.item_values = item_values
         id_dodavatele_value = self.item_values[-1]
         if id_dodavatele_value:
-            self.item_values[2] = self.suppliers_dict[self.item_values[-1]]
+            self.item_values[2] = self.suppliers_dict[id_dodavatele_value]
         self.init_curr_dict()        
         self.initialize_title(add_name_label=False)       
         self.show_for_editing()
@@ -1547,7 +1571,7 @@ class ItemFrameMovements(ItemFrameBase):
                            }
         self.title = f"{self.title} ZBOŽÍ"       
         self.curr_entry_dict = self.entry_dict[self.current_table] | self.action_dict[self.current_table][self.action]
-        self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())+("Neuvedeno",)
+        self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())
 
 
     def enter_item_movements(self, action, item_values, audit_log_col_names):
@@ -1581,7 +1605,7 @@ class ItemFrameMovements(ItemFrameBase):
             label = tk.Label(self.left_frame, text=self.tab2hum.get(col, col))
             label.grid(row=idx, column=0, sticky="ew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
-                entry_al = ttk.Combobox(self.left_frame,values=self.devices)             
+                entry_al = ttk.Combobox(self.left_frame,values=self.devices+("Neuvedeno",))             
                 entry_al.set("")
             elif col == 'Dodavatel':
                 entry_al = ttk.Combobox(self.left_frame, values=self.suppliers)
@@ -1985,7 +2009,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.92 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.93 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
