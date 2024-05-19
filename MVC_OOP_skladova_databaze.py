@@ -61,6 +61,26 @@ class Model:
         return self.cursor.fetchall()
 
 
+    def fetch_varianty_data(self):
+        """
+        Načte rozšířená data variant, včetně názvů dílů a dodavatelů z ostatních tabulek a indikaci Pod minimem.
+        
+        :return: Data variant spolu s názvy dílů a dodavatelů a informací, zda je množství pod minimálním množstvím.
+        """
+        query = """
+        SELECT v.*, s.Nazev_dilu, d.Dodavatel,
+               CASE 
+                   WHEN s.Mnozstvi_ks_m_l < s.Min_Mnozstvi_ks THEN 1
+                   ELSE 0
+               END AS 'Pod_minimem'
+        FROM varianty v
+        JOIN sklad s ON v.id_sklad = s.Evidencni_cislo
+        JOIN dodavatele d ON v.id_dodavatele = d.id
+        """
+        self.cursor.execute(query)
+        return self.cursor.fetchall()    
+
+
     def fetch_item_for_editing(self, table, id_num, id_col_name):
         """
         Získání dat položky pro účely editace na základě ID.
@@ -189,6 +209,8 @@ class View:
                                   "hidden_columns": ('Objednano', 'Poznamka', 'Cas_operace',),
                                   "special_columns": ('Ucetnictvi',),
                                   },
+                    "varianty": {"check_columns": ('Pod_minimem',),
+                                 }
                     }
     
 
@@ -215,7 +237,7 @@ class View:
                         'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele', 'Nazev_varianty': 'Název varianty',
                         'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
                         'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
-                        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení',}
+                        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'}
 
         
     def customize_ui(self):
@@ -310,9 +332,10 @@ class View:
         self.filter_low_stock = tk.BooleanVar(value=False)
         self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
 
-        if self.current_table == 'sklad':
-            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text='Pod_minimem', variable=self.filter_low_stock,
-                                                   borderwidth=3, relief="groove", onvalue=True, offvalue=False,
+        if self.current_table  == 'sklad':
+            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum['Pod_minimem'],
+                                                   variable=self.filter_low_stock, borderwidth=3, relief="groove",
+                                                   onvalue=True, offvalue=False,
                                                    command=lambda: self.controller.show_data(self.current_table))
             low_stock_checkbutton.pack(side='left', padx=5, pady=5)
             
@@ -444,7 +467,7 @@ class View:
             filtered_data = data
 
         if self.filter_low_stock.get():
-            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]            
+            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
         
         if self.current_table == "audit_log":
             if self.selected_option == "PŘÍJEM":
@@ -458,7 +481,7 @@ class View:
         if any(value.get() for value in self.filter_columns.values()):          
             filtered_data_temp = []
             for row in filtered_data:
-                include_row = True  
+                include_row = True
                 for col, is_filtered_var in self.filter_columns.items():
                     if is_filtered_var.get(): 
                         col_index = self.col_names.index(col)  
@@ -1167,7 +1190,7 @@ class ItemFrameBase:
             messagebox.showerror("Chyba", "Tato varianta již existuje.")
             self.entries["Dodavatel"].focus()
             return False
-        self.col_names = self.col_names[:-2]
+        self.col_names = self.col_names[:-3]
         return True
 
 
@@ -1753,7 +1776,7 @@ class Controller:
         """
         if table == 'varianty':
             data = self.model.fetch_varianty_data()
-            col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel"]
+            col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel", "Pod_minimem"]
         else:
             data = self.model.fetch_data(table)
             col_names = self.model.fetch_col_names(table)
@@ -1962,7 +1985,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.91 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.92 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
