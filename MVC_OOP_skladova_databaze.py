@@ -671,6 +671,63 @@ class View:
                                      self.item_frame, self.tab2hum, self.check_columns)
 
 
+class LoginView(View):
+    """
+    Třída LoginView pro přihlášení uživatele. Dědí od třídy View.
+    """
+    def __init__(self, root, controller, col_names):
+        """
+        Inicializace specifického zobrazení pro dodavatele.
+        
+        :param root: Hlavní okno aplikace.
+        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
+        :param col_names: Názvy sloupců pro aktuální zobrazení.
+        """
+        super().__init__(root, controller)
+        self.additional_gui_elements()
+
+
+    def additional_gui_elements(self):
+        """
+        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        """
+        self.frame = tk.Frame(self.root, borderwidth=2, relief="groove")
+        self.frame.pack(fill=tk.BOTH, expand=True)
+        
+        login_label = tk.Label(self.frame , text="Přihlášení uživatele", font=("TkDefaultFont", 20))
+        username_label = tk.Label(self.frame , text="Uživatelské jméno", font=("TkDefaultFont", 14))
+        self.username_entry = tk.Entry(self.frame , font=("TkDefaultFont", 14))
+        self.password_entry = tk.Entry(self.frame , show="*", font=("TkDefaultFont", 14))
+        password_label = tk.Label(self.frame , text="Heslo", font=("TkDefaultFont", 14))
+        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF", font=("TkDefaultFont", 16), command=self.attempt_login)
+
+        login_label.grid(row=0, column=0, columnspan=2, sticky="news", padx=5, pady=40)
+        username_label.grid(row=1, column=0, padx=5)
+        self.username_entry.grid(row=1, column=1, padx=5, pady=20)
+        password_label.grid(row=2, column=0, padx=5)
+        self.password_entry.grid(row=2, column=1, padx=5, pady=20)
+        login_button.grid(row=3, column=0, columnspan=2, pady=30)
+
+
+    def attempt_login(self):
+        """
+        Přihlášení uživatele do systému.
+        """
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        if username == "pilat" and password == "pass":
+            messagebox.showinfo("Přihlášení úspěšné", "Byl jste úspěšně přihlášen.")
+            self.controller.show_data("sklad")
+        else:
+            result = messagebox.askretrycancel("Přihlášení selhalo", "Nesprávné uživatelské jméno nebo heslo. Chcete to zkusit znovu?")
+            if result:
+                self.username_entry.delete(0, tk.END)
+                self.password_entry.delete(0, tk.END)
+            else:
+                self.root.destroy()   
+        
+
 class SkladView(View):
     """
     Třída SkladView pro specifické zobrazení dat skladu. Dědí od třídy View.
@@ -1816,6 +1873,11 @@ class Controller:
         
         :param table: Název tabulky pro zobrazení.
         """
+        if table == 'login':
+            self.current_table = table
+            self.current_view_instance = LoginView(self.root, self, [])
+            return
+        
         if table == 'varianty':
             data = self.model.fetch_varianty_data()
             col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel", "Pod_minimem"]
@@ -1823,26 +1885,22 @@ class Controller:
             data = self.model.fetch_data(table)
             col_names = self.model.fetch_col_names(table)
 
-        if self.current_view_instance is None:
-            self.current_view_instance = SkladView(self.root, self, col_names)
+        if self.current_table != table:
             self.current_table = table
-        else:
-            if self.current_table != table:
-                self.current_table = table
-                self.current_view_instance.frame.destroy()
-                if table == "sklad":
-                    self.current_view_instance = SkladView(self.root, self, col_names)
-                elif table == "audit_log":
-                    self.current_view_instance = AuditLogView(self.root, self, col_names)
-                elif table == "dodavatele":
-                    self.current_view_instance = DodavateleView(self.root, self, col_names)
-                elif table == "varianty":
-                    self.current_view_instance = VariantyView(self.root, self, col_names)
-                elif table == "zarizeni":
-                    self.current_view_instance = ZarizeniView(self.root, self, col_names)
-                else:
-                    messagebox.showwarning("Varování", "Nebyla vytvořena nová instance třídy View.")
-                    return
+            self.current_view_instance.frame.destroy()
+            if table == "sklad":
+                self.current_view_instance = SkladView(self.root, self, col_names)
+            elif table == "audit_log":
+                self.current_view_instance = AuditLogView(self.root, self, col_names)
+            elif table == "dodavatele":
+                self.current_view_instance = DodavateleView(self.root, self, col_names)
+            elif table == "varianty":
+                self.current_view_instance = VariantyView(self.root, self, col_names)
+            elif table == "zarizeni":
+                self.current_view_instance = ZarizeniView(self.root, self, col_names)
+            else:
+                messagebox.showwarning("Varování", "Nebyla vytvořena nová instance třídy View.")
+                return
 
         self.current_view_instance.add_data(current_data=data)
 
@@ -2027,11 +2085,11 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.95 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.96 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
-    table = 'sklad' # Startovací tabulka pro zobrazení
+    table = 'login' # Startovací tabulka pro zobrazení
     controller = Controller(root, db_path)
     controller.show_data(table)
     root.mainloop()
