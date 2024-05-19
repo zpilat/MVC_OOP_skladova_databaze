@@ -1214,7 +1214,6 @@ class ItemFrameBase:
             messagebox.showerror("Chyba", "Tato varianta již existuje.")
             self.entries["Dodavatel"].focus()
             return False
-        self.col_names = self.col_names[:-3]
         return True
 
 
@@ -1231,13 +1230,16 @@ class ItemFrameBase:
         
         self.checkbutton_values = {col: (1 if state.get() else 0) for col, state in self.checkbutton_states.items()}
         combined_values = {**self.entry_values, **self.checkbutton_values}
-        values_to_insert = [combined_values[col] for col in self.col_names]
-                
+                      
         if action == "add":
+            if self.current_table == "varianty":
+                col_names_to_save = self.col_names[:-2]
+            else: col_names_to_save = self.col_names
+            values_to_insert = [combined_values[col] for col in col_names_to_save]
             if self.current_table == 'zarizeni':
                 success = self.controller.add_column_and_set_default(self.new_col_name)
                 if not success: return
-            success = self.controller.insert_new_item(self.current_table, self.col_names, values_to_insert)
+            success = self.controller.insert_new_item(self.current_table, col_names_to_save, values_to_insert)
         elif action == "edit" and self.id_num is not None:
             success = self.controller.update_row(self.current_table, self.id_num, self.id_col_name, combined_values)
         if not success:
@@ -1275,7 +1277,7 @@ class ItemFrameBase:
                         entry = tk.Spinbox(frame, from_=0, to='infinity')
                         if self.item_values:
                             entry.delete(0, "end")
-                            entry.insert(0, self.item_values[index])                
+                            entry.insert(0, self.item_values[index])
                     case 'Jednotky':
                         entry = ttk.Combobox(frame, values=self.unit_tuple)
                         entry.set(start_value)                         
@@ -1510,9 +1512,10 @@ class ItemFrameAdd(ItemFrameBase):
         self.new_id = None
         self.new_interne_cislo = None
         self.item_values = item_values
-        id_dodavatele_value = self.item_values[-1]
-        if id_dodavatele_value:
-            self.item_values[2] = self.suppliers_dict[id_dodavatele_value]
+        dodavatel_value = self.item_values[-1]
+        if dodavatel_value:
+            id_dodavatele_value = self.suppliers_dict[dodavatel_value]
+            self.item_values[2] = id_dodavatele_value
         self.init_curr_dict()        
         self.initialize_title(add_name_label=False)       
         self.show_for_editing()
@@ -1685,9 +1688,22 @@ class ItemFrameMovements(ItemFrameBase):
             except ValueError:
                 self.show_warning(col, f"Neplatné datum: {date_str}. Zadejte prosím platné datum.")
                 return
-            
+
+        self.calculate_and_save(action)
+
+
+    def calculate_and_save(self, action): 
+        """
+        Metoda uložení dat výpočet hodnot před uložením do skladu a audit_logu a pro uložení
+        změn do tabulky sklad a nového zápisu do tabulky audit_log. Pokud je při příjmu zjištěno,
+        že ještě neexistuje varianta skladové položky se zadaným dodavatelem, tak připraví okno na
+        vytvoření nové varianty.
+        
+        :Params action: typ prováděné operace.
+        """           
         self.calculate_before_save_to_audit_log() 
         self.calculate_before_save_to_sklad()
+        
         success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
         if not success:
             return
@@ -2009,7 +2025,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.93 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.94 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
