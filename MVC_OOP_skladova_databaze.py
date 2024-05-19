@@ -642,7 +642,7 @@ class View:
                                                   self.item_frame, self.tab2hum, self.check_columns)
 
 
-    def add_variant(self):
+    def add_variant(self, curr_unit_price=None):
         """
         Metoda pro získání aktuálních dat z databáze pro vybranou položku a jejich zobrazení
         pro tvorbu nové varianty.
@@ -656,7 +656,8 @@ class View:
         varianty_check_columns = varianty_table_config.get("check_columns", [])
         varianty_id_col_name = varianty_table_config.get("id_col_name", "id")
         self.controller.add_variant(self.current_table, self.id_num, self.id_col_name, self.item_frame,
-                                    self.tab2hum, varianty_check_columns, varianty_table, varianty_id_col_name)
+                                    self.tab2hum, varianty_check_columns, varianty_table, varianty_id_col_name,
+                                    curr_unit_price)
       
         
     def add_item(self):
@@ -1372,7 +1373,6 @@ class ItemFrameShow(ItemFrameBase):
                 self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
                 checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
                 if (col == 'Ucetnictvi' or col == 'Kriticky_dil'): checkbutton.config(borderwidth=3, relief="groove")
-                checkbutton.config(state="normal")
                 checkbutton.pack(side=tk.LEFT, padx=5)
                 checkbutton.bind("<Enter>", lambda event, cb=checkbutton: cb.config(state="disabled"))
                 checkbutton.bind("<Leave>", lambda event, cb=checkbutton: cb.config(state="normal"))
@@ -1627,6 +1627,7 @@ class ItemFrameMovements(ItemFrameBase):
                 label.grid_forget()
                 entry_al.grid_forget()
             self.entries_al[col] = entry_al
+            
         self.entries_al['Zmena_mnozstvi'].focus()
 
 
@@ -1705,6 +1706,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.calculate_before_save_to_sklad()
         
         success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
+        print(self.values_to_sklad)
         if not success:
             return
         success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[1:], self.values_to_audit_log[1:])
@@ -1719,7 +1721,7 @@ class ItemFrameMovements(ItemFrameBase):
             exists_variant = self.controller.check_existence_of_variant(id_sklad_value, id_dodavatele_value, "varianty")
             if not exists_variant:
                 messagebox.showinfo("Informace", "Varianta s tímto dodavatelem ještě neexistuje, prosím, vytvořte ji.")
-                self.current_view_instance.add_variant()
+                self.current_view_instance.add_variant(curr_unit_price=self.new_unit_price)
                 return
 
         self.controller.show_data(self.current_table)
@@ -1895,7 +1897,7 @@ class Controller:
 
 
     def add_variant(self, table, id_num, id_col_name, master, tab2hum, varianty_check_columns,
-                    varianty_table, varianty_id_col_name):
+                    varianty_table, varianty_id_col_name, curr_unit_price):
         """
         Získání dat a zobrazení vybrané položky pro vytvoření nové varianty.
         
@@ -1910,7 +1912,7 @@ class Controller:
         varianty_item_values = [sklad_values_dict.get(col, "") for col in varianty_col_names]
         varianty_item_values[0] = new_id
         varianty_item_values[1] = sklad_values_dict['Evidencni_cislo']
-        varianty_item_values[5] = ""
+        varianty_item_values[5] = curr_unit_price if curr_unit_price else ""
                                          
         self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, varianty_table,
                                                    varianty_check_columns, self.current_view_instance)
@@ -2025,7 +2027,7 @@ class Controller:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.94 MVC OOP')
+    root.title('Zobrazení databáze HPM HEAT SK - verze 0.95 MVC OOP')
     if sys.platform.startswith('win'):
         root.state('zoomed')
     db_path = 'skladova_databaze.db'
