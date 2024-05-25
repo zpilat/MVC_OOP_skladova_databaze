@@ -226,7 +226,7 @@ class Model:
             else:
                 return (None, None)
         except Exception as e:
-            messagebox.showerror("Chyba", f"Chyba při získávání informací o uživateli: {e}")
+            print(f"Chyba při získávání informací o uživateli: {e}")
             return (None, None)
 
 
@@ -269,7 +269,7 @@ class View:
         """
         self.root = root
         self.controller = controller
-        self.sort_reverse = True
+        self.sort_reverse = False
         self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
@@ -1193,7 +1193,7 @@ class ItemFrameBase:
     """
     table_config = {
         "sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
-                  "unit_price_col": 13, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
+                  "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
         "audit_log": {"order_of_name": 5, "name": "POHYBU NA SKLADĚ",},
         "dodavatele": {"order_of_name": 1, "focus": 'Dodavatel', "name": "DODAVATELE",},
         "varianty": {"order_of_name": 3, "focus": 'Nazev_varianty', "name": "VARIANTY",},
@@ -1319,7 +1319,7 @@ class ItemFrameBase:
 
         if action=="add":
             if self.current_table=="zarizeni":
-                success = self.check_length()
+                success = self.check_lenght()
                 if not success: return
                
             if self.current_table=='varianty':
@@ -1559,7 +1559,7 @@ class ItemFrameEdit(ItemFrameBase):
                                         },                           
                            "varianty": {"read_only": ('id', 'id_sklad', 'id_dodavatele',),
                                         "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
-                                        "not_neg_real":('Jednotkova_cena_EUR',),
+                                        "pos_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
                                         }
                            }
@@ -2022,6 +2022,7 @@ class Controller:
         if self.model.verify_user_credentials(username, password_hash):
             self.current_user = username
             self.name_of_user, self.current_role = self.model.get_user_info(self.current_user)
+            print(self.name_of_user, self.current_user)
             self.start_main_window()
         else:
             self.current_view_instance.handle_failed_login()
@@ -2193,7 +2194,7 @@ class Controller:
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.00 beta MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 0.99 beta MVC OOP')
         if sys.platform.startswith('win'):
             root.state('zoomed')
         self.show_data("sklad")  
