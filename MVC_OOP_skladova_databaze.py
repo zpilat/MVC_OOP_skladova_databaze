@@ -186,7 +186,50 @@ class Model:
         """
         self.cursor.execute("DELETE FROM sklad WHERE `Evidencni_cislo`=?", (evidencni_cislo,))
         self.conn.commit()
+
+
+    def verify_user_credentials(self, username, password_hash):
+        """
+        Ověří, zda zadané uživatelské jméno a hash hesla odpovídají údajům v databázi.
+
+        :param username: Uživatelské jméno k ověření.
+        :param password_hash: Hash hesla k ověření.
+        :return: True, pokud údaje odpovídají; jinak False.
+        """
+        query = "SELECT password_hash FROM uzivatele WHERE username = ?"
+        self.cursor.execute(query, (username,))
+        result = self.cursor.fetchone()
+        if result:
+            stored_password_hash = result[0]
+            return stored_password_hash == password_hash
+        else:
+            return False        
         
+
+    def get_user_info(self, username):
+        """
+        Získá jméno a roli uživatele z databáze na základě jeho uživatelského jména.
+
+        Tato metoda vyhledá v databázi v tabulce "uzivatele" řádek, který odpovídá
+        zadanému uživatelskému jménu, a vrátí jméno uživatele a jeho roli
+        z odpovídajících sloupců "name" a "role".
+
+        :param username: Uživatelské jméno, pro které má být informace získána.
+        :return: Tuple obsahující jméno uživatele a jeho roli nebo (None, None),
+                 pokud uživatel s takovým uživatelským jménem neexistuje.
+        """
+        try:
+            self.cursor.execute("SELECT name, role FROM uzivatele WHERE username = ?", (username,))
+            result = self.cursor.fetchone()
+            if result:
+                return result
+            else:
+                return (None, None)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Chyba při získávání informací o uživateli: {e}")
+            return (None, None)
+
+
 
     def __del__(self):
         """
@@ -226,7 +269,7 @@ class View:
         """
         self.root = root
         self.controller = controller
-        self.sort_reverse = False
+        self.sort_reverse = True
         self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
@@ -674,10 +717,16 @@ class View:
 
     def hash_password(self, password):
         """
-        Převod hesla na hash pomocí SHA-256
+        Vypočítá a vrátí hash zadaného hesla pomocí algoritmu SHA-256.
+
+        Tato funkce je určena pro bezpečné ukládání hesel v databázi. Místo uložení
+        čitelného hesla se uloží jeho hash, což zvyšuje bezpečnost uchování hesel.
+
+        :param password: Heslo, které má být zahashováno.
+        :return: Zahashované heslo ve formátu hexadecimálního řetězce.
         """
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
-        return hashed_password
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        return password_hash
 
 
 class LoginView(View):
@@ -738,9 +787,14 @@ class LoginView(View):
         Přihlášení uživatele do systému.
         """
         username = self.username_entry.get()
-        password = self.hash_password(self.password_entry.get())
+        password = self.password_entry.get()
+        if not username or not password:
+            messagebox.showinfo("Upozornění", "Nebylo zadáno uživatelské jméno nebo heslo")
+            return
 
-        self.controller.attempt_login(username, password)
+        password_hash = self.hash_password(password)
+
+        self.controller.attempt_login(username, password_hash)
 
         
     def handle_failed_login(self):
@@ -1139,7 +1193,7 @@ class ItemFrameBase:
     """
     table_config = {
         "sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
-                  "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
+                  "unit_price_col": 13, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
         "audit_log": {"order_of_name": 5, "name": "POHYBU NA SKLADĚ",},
         "dodavatele": {"order_of_name": 1, "focus": 'Dodavatel', "name": "DODAVATELE",},
         "varianty": {"order_of_name": 3, "focus": 'Nazev_varianty', "name": "VARIANTY",},
@@ -1164,11 +1218,13 @@ class ItemFrameBase:
         self.check_columns = check_columns
         self.suppliers_dict = self.controller.fetch_dict("dodavatele")
         self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
-        self.initialize_fonts()
-        self.initialize_frames()
-        self.logged_user = "Janarčin"
+        self.current_user = self.controller.current_user
+        self.name_of_user = self.controller.name_of_user
         self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
         self.curr_table_config = ItemFrameBase.table_config[self.current_table]
+
+        self.initialize_fonts()
+        self.initialize_frames()
 
 
     def initialize_fonts(self):
@@ -1263,7 +1319,7 @@ class ItemFrameBase:
 
         if action=="add":
             if self.current_table=="zarizeni":
-                success = self.check_lenght()
+                success = self.check_length()
                 if not success: return
                
             if self.current_table=='varianty':
@@ -1503,7 +1559,7 @@ class ItemFrameEdit(ItemFrameBase):
                                         },                           
                            "varianty": {"read_only": ('id', 'id_sklad', 'id_dodavatele',),
                                         "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
-                                        "pos_real":('Jednotkova_cena_EUR',),
+                                        "not_neg_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
                                         }
                            }
@@ -1634,7 +1690,7 @@ class ItemFrameMovements(ItemFrameBase):
                                  "date":('Datum_nakupu',),
                                  "pos_real": ('Jednotkova_cena_EUR',),
                                  "pos_integer":('Zmena_mnozstvi',),
-                                 "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.logged_user,
+                                 "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.name_of_user,
                                                   'Datum_nakupu': self.actual_date, 'Datum_vydeje': "",},
                                  "tuple_values_to_save": ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
                                                           'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka'),
@@ -1644,7 +1700,7 @@ class ItemFrameMovements(ItemFrameBase):
                                 "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni', 'Umisteni'),
                                 "date":('Datum_vydeje',),
                                 "pos_integer":('Zmena_mnozstvi',),
-                                "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.logged_user,
+                                "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.name_of_user,
                                                   'Datum_nakupu': "", 'Datum_vydeje': self.actual_date,},
                                 "tuple_values_to_save": ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR'),
                                 },
@@ -1793,7 +1849,6 @@ class ItemFrameMovements(ItemFrameBase):
         self.calculate_before_save_to_sklad()
         
         success = self.controller.update_row("sklad", self.id_num, self.id_col_name, self.values_to_sklad)
-        print(self.values_to_sklad)
         if not success:
             return
         success = self.controller.insert_new_item("audit_log", self.audit_log_col_names[1:], self.values_to_audit_log[1:])
@@ -1957,26 +2012,16 @@ class Controller:
         self.current_view_instance = LoginView(self.root, self, [])
 
 
-    def verify_user_credentials(self, username, password):
-        """
-        Ověří přihlašovací údaje uživatele.
-        
-        :param username: Uživatelské jméno.
-        :param password: Heslo.
-        :return: True, pokud jsou údaje správné, jinak False.
-        """
-        return True #or False
-
-
-    def attempt_login(self, username, password):
+    def attempt_login(self, username, password_hash):
         """
         Zkusí přihlásit uživatele se zadanými přihlašovacími údaji.
         
         :param username: Uživatelské jméno.
-        :param password: Heslo.
+        :param password_hash: Zahashované heslo.
         """        
-        if self.verify_user_credentials(username, password):
+        if self.model.verify_user_credentials(username, password_hash):
             self.current_user = username
+            self.name_of_user, self.current_role = self.model.get_user_info(self.current_user)
             self.start_main_window()
         else:
             self.current_view_instance.handle_failed_login()
@@ -2148,7 +2193,7 @@ class Controller:
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 0.97 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.00 beta MVC OOP')
         if sys.platform.startswith('win'):
             root.state('zoomed')
         self.show_data("sklad")  
