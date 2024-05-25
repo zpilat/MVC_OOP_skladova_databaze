@@ -226,7 +226,7 @@ class Model:
             else:
                 return (None, None)
         except Exception as e:
-            print(f"Chyba při získávání informací o uživateli: {e}")
+            messagebox.showerror("Chyba", f"Chyba při získávání informací o uživateli: {e}")
             return (None, None)
 
 
@@ -744,13 +744,12 @@ class LoginView(View):
         super().__init__(root, controller)
         self.additional_gui_elements()
 
+    def place_window(self, window_width, window_height):
+        """
+        Metoda na umístění okna do středu obrazovky a stanovení velikosti okna dle zadaných parametrů.
 
-    def additional_gui_elements(self):
+        :params window_width, window_height - rozměry okna aplikace.
         """
-        Vytvoření a umístění prvků GUI pro přihlašovací formulář.
-        """
-        window_width = 410
-        window_height = 340
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         center_x = int((screen_width/2) - (window_width/2))
@@ -758,6 +757,13 @@ class LoginView(View):
 
         self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
 
+
+    def additional_gui_elements(self):
+        """
+        Vytvoření a umístění prvků GUI pro přihlašovací formulář.
+        """
+        self.place_window(410, 340)
+        
         self.frame = tk.Frame(self.root, borderwidth=2, relief="groove")
         self.frame.pack(fill=tk.BOTH, expand=True)
         
@@ -766,8 +772,8 @@ class LoginView(View):
         self.username_entry = tk.Entry(self.frame , font=("TkDefaultFont", 14))
         self.password_entry = tk.Entry(self.frame , show="*", font=("TkDefaultFont", 14))
         password_label = tk.Label(self.frame , text="Heslo", font=("TkDefaultFont", 14))
-        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF",
-                                 font=("TkDefaultFont", 16), command=self.attempt_login)
+        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF", borderwidth=2,
+                                 relief="groove", font=("TkDefaultFont", 16), command=self.attempt_login)
 
         login_label.grid(row=0, column=0, columnspan=2, sticky="news", padx=5, pady=40)
         username_label.grid(row=1, column=0, padx=5)
@@ -810,6 +816,20 @@ class LoginView(View):
             self.username_entry.focus()
         else:
             self.root.destroy()
+
+
+    def start_main_window(self):
+        """
+        Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
+        """        
+        root.title('Skladová databáze HPM HEAT SK - verze 1.01 MVC OOP')
+        
+        if sys.platform.startswith('win'):
+            root.state('zoomed')
+        else:
+            self.place_window(1920, 1080)
+        
+        self.controller.show_data("sklad")      
      
 
 class SkladView(View):
@@ -1193,7 +1213,7 @@ class ItemFrameBase:
     """
     table_config = {
         "sklad": {"order_of_name": 6, "id_col_name": "Evidencni_cislo", "quantity_col": 7,
-                  "unit_price_col": 33, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
+                  "unit_price_col": 13, "focus": 'Nazev_dilu', "name": "SKLADOVÉ KARTY",},
         "audit_log": {"order_of_name": 5, "name": "POHYBU NA SKLADĚ",},
         "dodavatele": {"order_of_name": 1, "focus": 'Dodavatel', "name": "DODAVATELE",},
         "varianty": {"order_of_name": 3, "focus": 'Nazev_varianty', "name": "VARIANTY",},
@@ -2022,8 +2042,7 @@ class Controller:
         if self.model.verify_user_credentials(username, password_hash):
             self.current_user = username
             self.name_of_user, self.current_role = self.model.get_user_info(self.current_user)
-            print(self.name_of_user, self.current_user)
-            self.start_main_window()
+            self.current_view_instance.start_main_window()
         else:
             self.current_view_instance.handle_failed_login()
 
@@ -2185,25 +2204,15 @@ class Controller:
                 csv_writer.writerow(col_names)
                 for row in data:
                     csv_writer.writerow(row)
-            messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
+            messagebox.showinf("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
         except Exception as e:
             messagebox.showerror("Chyba při exportu", f"Nastala chyba při exportu dat: {e}")
-
-
-    def start_main_window(self):
-        """
-        Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
-        """        
-        root.title('Skladová databáze HPM HEAT SK - verze 0.99 beta MVC OOP')
-        if sys.platform.startswith('win'):
-            root.state('zoomed')
-        self.show_data("sklad")  
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title('Přihlášení - Skladová databáze HPM HEAT SK')
-    db_path = 'skladova_databaze.db' 
+    db_path = 'skladova_databaze_EC0.db' 
     controller = Controller(root, db_path)
     controller.start_login()
     root.mainloop()
