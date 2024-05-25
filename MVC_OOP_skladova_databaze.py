@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import unicodedata
+import hashlib
 
 class Model:
     """
@@ -671,6 +672,14 @@ class View:
                                      self.item_frame, self.tab2hum, self.check_columns)
 
 
+    def hash_password(self, password):
+        """
+        Převod hesla na hash pomocí SHA-256
+        """
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        return hashed_password
+
+
 class LoginView(View):
     """
     Třída LoginView pro přihlášení uživatele. Dědí od třídy View.
@@ -679,9 +688,9 @@ class LoginView(View):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
-        :param root: Hlavní okno aplikace.
-        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
-        :param col_names: Názvy sloupců pro aktuální zobrazení.
+        :param root: Tkinter root widget, hlavní okno aplikace.
+        :param controller: Instance třídy Controller.
+        :param col_names: Seznam názvů sloupců (v tomto případě prázdný, protože se nepoužívá).
         """
         super().__init__(root, controller)
         self.additional_gui_elements()
@@ -689,8 +698,17 @@ class LoginView(View):
 
     def additional_gui_elements(self):
         """
-        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        Vytvoření a umístění prvků GUI pro přihlašovací formulář.
         """
+        window_width = 410
+        window_height = 340
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        center_x = int((screen_width/2) - (window_width/2))
+        center_y = int((screen_height/2) - (window_height/2))
+
+        self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+
         self.frame = tk.Frame(self.root, borderwidth=2, relief="groove")
         self.frame.pack(fill=tk.BOTH, expand=True)
         
@@ -699,7 +717,8 @@ class LoginView(View):
         self.username_entry = tk.Entry(self.frame , font=("TkDefaultFont", 14))
         self.password_entry = tk.Entry(self.frame , show="*", font=("TkDefaultFont", 14))
         password_label = tk.Label(self.frame , text="Heslo", font=("TkDefaultFont", 14))
-        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF", font=("TkDefaultFont", 16), command=self.attempt_login)
+        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF",
+                                 font=("TkDefaultFont", 16), command=self.attempt_login)
 
         login_label.grid(row=0, column=0, columnspan=2, sticky="news", padx=5, pady=40)
         username_label.grid(row=1, column=0, padx=5)
@@ -708,25 +727,36 @@ class LoginView(View):
         self.password_entry.grid(row=2, column=1, padx=5, pady=20)
         login_button.grid(row=3, column=0, columnspan=2, pady=30)
 
+        self.username_entry.bind('<Return>', lambda _: self.attempt_login())
+        self.password_entry.bind('<Return>', lambda _: self.attempt_login())
+
+        self.username_entry.focus()
+
 
     def attempt_login(self):
         """
         Přihlášení uživatele do systému.
         """
         username = self.username_entry.get()
-        password = self.password_entry.get()
+        password = self.hash_password(self.password_entry.get())
 
-        if username == "pilat" and password == "pass":
-            messagebox.showinfo("Přihlášení úspěšné", "Byl jste úspěšně přihlášen.")
-            self.controller.show_data("sklad")
-        else:
-            result = messagebox.askretrycancel("Přihlášení selhalo", "Nesprávné uživatelské jméno nebo heslo. Chcete to zkusit znovu?")
-            if result:
-                self.username_entry.delete(0, tk.END)
-                self.password_entry.delete(0, tk.END)
-            else:
-                self.root.destroy()   
+        self.controller.attempt_login(username, password)
+
         
+    def handle_failed_login(self):
+        """
+        Zobrazí dialogové okno s možností opakování přihlášení nebo ukončení aplikace
+        po neúspěšném pokusu o přihlášení.
+        """
+        result = messagebox.askretrycancel("Přihlášení selhalo",
+                                           "Nesprávné uživatelské jméno nebo heslo. Chcete to zkusit znovu?")
+        if result:
+            self.username_entry.delete(0, tk.END)
+            self.password_entry.delete(0, tk.END)
+            self.username_entry.focus()
+        else:
+            self.root.destroy()
+     
 
 class SkladView(View):
     """
@@ -1842,6 +1872,8 @@ class Controller:
         self.db_path = db_path
         self.model = Model(db_path)
         self.current_view_instance = None
+        self.current_user = None
+        self.current_role = None
 
 
     def fetch_dict(self, table):
@@ -1872,12 +1904,7 @@ class Controller:
         stejná, pouze se aktulizují zobrazená data.
         
         :param table: Název tabulky pro zobrazení.
-        """
-        if table == 'login':
-            self.current_table = table
-            self.current_view_instance = LoginView(self.root, self, [])
-            return
-        
+        """     
         if table == 'varianty':
             data = self.model.fetch_varianty_data()
             col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel", "Pod_minimem"]
@@ -1898,6 +1925,8 @@ class Controller:
                 self.current_view_instance = VariantyView(self.root, self, col_names)
             elif table == "zarizeni":
                 self.current_view_instance = ZarizeniView(self.root, self, col_names)
+            elif table == "uzivatele":
+                self.current_view_instance = UzivateleView(self.root, self, col_names)                
             else:
                 messagebox.showwarning("Varování", "Nebyla vytvořena nová instance třídy View.")
                 return
@@ -1917,7 +1946,40 @@ class Controller:
         
         self.current_item_instance = ItemFrameEdit(master, self, col_names, tab2hum, table,
                                                        check_columns, self.current_view_instance)
-        self.current_item_instance.open_edit_window(item_values)    
+        self.current_item_instance.open_edit_window(item_values)
+
+
+    def start_login(self):
+        """
+        Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
+        """
+        self.current_table = "login"
+        self.current_view_instance = LoginView(self.root, self, [])
+
+
+    def verify_user_credentials(self, username, password):
+        """
+        Ověří přihlašovací údaje uživatele.
+        
+        :param username: Uživatelské jméno.
+        :param password: Heslo.
+        :return: True, pokud jsou údaje správné, jinak False.
+        """
+        return True #or False
+
+
+    def attempt_login(self, username, password):
+        """
+        Zkusí přihlásit uživatele se zadanými přihlašovacími údaji.
+        
+        :param username: Uživatelské jméno.
+        :param password: Heslo.
+        """        
+        if self.verify_user_credentials(username, password):
+            self.current_user = username
+            self.start_main_window()
+        else:
+            self.current_view_instance.handle_failed_login()
 
 
     def show_data_for_movements(self, table, id_num, id_col_name, master, tab2hum, check_columns, action):
@@ -2082,14 +2144,20 @@ class Controller:
             messagebox.showerror("Chyba při exportu", f"Nastala chyba při exportu dat: {e}")
 
 
+    def start_main_window(self):
+        """
+        Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
+        """        
+        root.title('Skladová databáze HPM HEAT SK - verze 0.97 MVC OOP')
+        if sys.platform.startswith('win'):
+            root.state('zoomed')
+        self.show_data("sklad")  
+
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Zobrazení databáze HPM HEAT SK - verze 0.96 MVC OOP')
-    if sys.platform.startswith('win'):
-        root.state('zoomed')
-    db_path = 'skladova_databaze.db'
-    table = 'login' # Startovací tabulka pro zobrazení
+    root.title('Přihlášení - Skladová databáze HPM HEAT SK')
+    db_path = 'skladova_databaze.db' 
     controller = Controller(root, db_path)
-    controller.show_data(table)
+    controller.start_login()
     root.mainloop()
