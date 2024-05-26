@@ -386,9 +386,9 @@ class View:
          self.check_buttons_frame = tk.LabelFrame(self.frame, text="Filtrování dle zařízení",
                                                   borderwidth=2, relief="groove")
          self.check_buttons_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
-         self.tree_frame = tk.LabelFrame(self.frame, text="Zobrazení položek", borderwidth=2, relief="groove")
+         self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
          self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-         self.item_frame = tk.LabelFrame(self.frame, text="Podrobné informace o položce", width=435,
+         self.item_frame = tk.Frame(self.frame, width=435,
                                          borderwidth=2, relief="groove")
          self.item_frame.pack_propagate(False)
          self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
@@ -440,6 +440,8 @@ class View:
         self.tree.tag_configure('oddrow', background='#F5F5F5')
         self.tree.tag_configure('low_stock', foreground='#CD5C5C')
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)          
+        if self.current_table=="sklad":
+            self.tree.bind('<Double-1>', self.show_variants_in_item_frame)          
 
 
     def update_menu(self, additional_menus):
@@ -856,7 +858,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.03 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.04 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -957,6 +959,16 @@ class SkladView(View):
         self.item_frame_show = None
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
                                               self.item_frame, self.tab2hum, self.check_columns, action)
+
+    def show_variants_in_item_frame(self, event):
+        """
+        Zobrazení variant položky, která byla vybrána dvojklikem.
+        """
+        selected_item = self.select_item()
+        if selected_item is None: return
+        self.controller.show_variants_in_item_frame(self.id_num)
+
+    
 
     
 class AuditLogView(View):
@@ -1287,6 +1299,7 @@ class ItemFrameBase:
         self.name_of_user = self.controller.name_of_user
         self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
         self.curr_table_config = ItemFrameBase.table_config[self.current_table]
+        self.special_columns = ('Ucetnictvi', 'Kriticky_dil', 'Pod_minimem')
 
         self.initialize_fonts()
         self.initialize_frames()
@@ -1321,8 +1334,12 @@ class ItemFrameBase:
         self.top_frame.pack(side=tk.TOP, fill=tk.X)     
         self.left_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
         self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2, pady=2)
-        self.right_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
-        self.right_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=2, pady=2)
+        self.right_common_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
+        self.right_common_frame.pack(side=tk.LEFT, fill=tk.BOTH, padx=2, pady=2)
+        self.right_top_frame = tk.Frame(self.right_common_frame, borderwidth=2, relief="groove")
+        self.right_top_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)        
+        self.right_frame = tk.Frame(self.right_common_frame, borderwidth=2, relief="groove")
+        self.right_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)
 
         if action:        
             self.bottom_frame = tk.Frame(self.show_frame)
@@ -1384,7 +1401,7 @@ class ItemFrameBase:
 
         if action=="add":
             if self.current_table=="zarizeni":
-                success = self.check_lenght()
+                success = self.check_length()
                 if not success: return
                
             if self.current_table=='varianty':
@@ -1472,9 +1489,14 @@ class ItemFrameBase:
                     self.checkbutton_states[col] = tk.BooleanVar(value=self.item_values[index] == 1)
                 else:
                     self.checkbutton_states[col] = tk.BooleanVar(value=True) if col == 'Ucetnictvi' else tk.BooleanVar(value=False)
-                checkbutton = tk.Checkbutton(frame, text=self.tab2hum.get(col, col), variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'):            
-                    checkbutton.config(borderwidth=3, relief="groove")
+                if col in self.special_columns:
+                    frame = tk.Frame(self.right_top_frame)
+                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum.get(col, col), borderwidth=3,
+                                                 relief="groove", variable=self.checkbutton_states[col])
+                else:
+                    frame = tk.Frame(self.right_frame)
+                    checkbutton = tk.Checkbutton(frame, text=self.tab2hum.get(col, col),
+                                                 variable=self.checkbutton_states[col])
                 checkbutton.pack(side=tk.LEFT, padx=5)
             else:
                 frame = tk.Frame(self.left_frame)
@@ -1576,11 +1598,15 @@ class ItemFrameShow(ItemFrameBase):
             item_value = self.item_values[index]
             item_text = self.tab2hum.get(col, col)
             if col in self.check_columns:
-                frame = tk.Frame(self.right_frame)
                 item_state = int(item_value) == 1
                 self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
-                checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
-                if (col == 'Ucetnictvi' or col == 'Kriticky_dil'): checkbutton.config(borderwidth=3, relief="groove")
+                if col in self.special_columns:
+                    frame = tk.Frame(self.right_top_frame)
+                    checkbutton = tk.Checkbutton(frame, text=item_text, borderwidth=3, relief="groove",
+                                                 variable=self.checkbutton_states[col])
+                else:
+                    frame = tk.Frame(self.right_frame)
+                    checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
                 checkbutton.pack(side=tk.LEFT, padx=5)
                 checkbutton.bind("<Enter>", lambda event, cb=checkbutton: cb.config(state="disabled"))
                 checkbutton.bind("<Leave>", lambda event, cb=checkbutton: cb.config(state="normal"))
@@ -1644,7 +1670,6 @@ class ItemFrameEdit(ItemFrameBase):
         self.id_num = self.item_values[0]
         self.id_col_name = self.curr_table_config.get("id_col_name", "id")
         self.show_for_editing()
-
 
 
 class ItemFrameAdd(ItemFrameBase):
@@ -1942,6 +1967,8 @@ class ItemFrameMovements(ItemFrameBase):
                 messagebox.showinfo("Informace", "Varianta s tímto dodavatelem ještě neexistuje, prosím, vytvořte ji.")
                 self.current_view_instance.add_variant(curr_unit_price=self.new_unit_price)
                 return
+            else:
+                pass # uložit aktuální jednotkovou cenu do varianty
 
         self.controller.show_data(self.current_table)
         
@@ -2184,7 +2211,29 @@ class Controller:
                                          
         self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, varianty_table,
                                                    varianty_check_columns, self.current_view_instance)
-        self.current_item_instance.add_variant(varianty_item_values)         
+        self.current_item_instance.add_variant(varianty_item_values)
+
+
+    def show_variants_in_item_frame(self, id_num):
+        """
+        Metoda, která získá data variant dvojklikem vybrané skladové položky a
+        pošle je k zobrazení do item_frame.
+
+        :param id_num: evideční číslo dvojklikem vybrané skladové položky.
+        :return 
+        """
+        try:
+            variants_data = self.model.fetch_variants_data(id_num, "sklad", "Evidencni_cislo")
+        except Exception as e:
+            messagebox.showwarning("Varování", f"Nebyly získány data variant z důvodu chyby {e}")
+            return
+        if not exists_variant:
+            messagebox.showwarning("Varování", "Neexistují žádné varianty vybrané položky.")
+            return
+        print(exists_variant)
+##        self.current_item_instance = ItemFrameVar(master, self, varianty_col_names, tab2hum, varianty_table,
+##                                                   varianty_check_columns, self.current_view_instance)
+##        self.current_item_instance.show_variants(exists_variant)       
 
 
     def check_existence_of_variant(self, id_sklad_value, id_dodavatele_value, current_table):
