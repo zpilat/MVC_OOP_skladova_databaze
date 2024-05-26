@@ -81,7 +81,28 @@ class Model:
         JOIN dodavatele d ON v.id_dodavatele = d.id
         """
         self.cursor.execute(query)
-        return self.cursor.fetchall()    
+        return self.cursor.fetchall()
+
+
+    def fetch_item_variants(self, table, id_num, id_col_name):
+        """
+        Získání dat variant položky pro na základě ID pro zobrazení ve spodním frame.
+
+        :param table: Název tabulky, ze které se položka získává.
+        :param id_num: Číslo ID položky, ke které chceme získat varianty.
+        :param id_col_name: Název sloupce, který obsahuje ID položky.
+        :return: Seznam n-tic s daty variant položky a sloupcem Dodavatel z tabulky dodavatele
+                 nebo None, pokud položka nebyla nalezena.
+        """
+        query = f"""
+        SELECT v.*, d.Dodavatel
+        FROM {table} AS v
+        JOIN dodavatele AS d ON v.id_dodavatele = d.id
+        WHERE v.{id_col_name} = ?
+        """
+        self.cursor.execute(query, (id_num,))
+        return self.cursor.fetchall()
+
 
 
     def fetch_item_for_editing(self, table, id_num, id_col_name):
@@ -324,7 +345,7 @@ class View:
         self.update_menu(self.spec_menus())
         self.update_frames()
         self.initialize_check_buttons()
-        self.initialize_treeview(self.tree_frame)
+        self.initialize_treeview()
         self.additional_gui_elements()
         self.setup_columns(self.col_parameters())    
 
@@ -380,18 +401,14 @@ class View:
          self.search_frame = tk.LabelFrame(self.top_frames_container, text="Vyhledávání",
                                            borderwidth=2, relief="groove")
          self.search_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
-         self.filter_buttons_frame = tk.LabelFrame(self.top_frames_container, text="Filtrování dle podmínek",
+         self.filter_buttons_frame = tk.LabelFrame(self.top_frames_container, text="Filtrování dle výběru",
                                                    borderwidth=2, relief="groove")
          self.filter_buttons_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
          self.check_buttons_frame = tk.LabelFrame(self.frame, text="Filtrování dle zařízení",
                                                   borderwidth=2, relief="groove")
          self.check_buttons_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
-         self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-         self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-         self.item_frame = tk.Frame(self.frame, width=435,
-                                         borderwidth=2, relief="groove")
-         self.item_frame.pack_propagate(False)
-         self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
+         self.left_frames_container = tk.Frame(self.frame)
+         self.left_frames_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)        
 
 
     def initialize_searching(self):
@@ -423,25 +440,22 @@ class View:
                 checkbutton.pack(side='left', pady=5)
 
 
-    def initialize_treeview(self, tree_frame):
+    def initialize_treeview(self):
         """
         Inicializace TreeView a přidruženého scrollbaru.
 
         :param tree_frame: Frame pro zobrazení Treeview.
         """
-        self.tree = ttk.Treeview(tree_frame, show='headings', height=30)
+        self.tree = ttk.Treeview(self.tree_frame, show='headings', height=30)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=self.scrollbar.set)
         self.scrollbar.pack(side=tk.RIGHT, fill="y")
 
         self.tree.tag_configure('evenrow', background='#FFFFFF')
         self.tree.tag_configure('oddrow', background='#F5F5F5')
-        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
-        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)          
-        if self.current_table=="sklad":
-            self.tree.bind('<Double-1>', self.show_variants_in_item_frame)          
+        self.tree.tag_configure('low_stock', foreground='#CD5C5C')            
 
 
     def update_menu(self, additional_menus):
@@ -488,14 +502,20 @@ class View:
         """
         Aktualizuje specifické frame pro dané zobrazení.
         """
-        pass
+        self.item_frame = tk.LabelFrame(self.frame, width=435, text="Zobrazení detailu položky",
+                                        borderwidth=2, relief="groove")
+        self.item_frame.pack_propagate(False)
+        self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
+        self.tree_frame = tk.LabelFrame(self.left_frames_container, text="Zobrazení vyfiltrovaných položek",
+                                        borderwidth=2, relief="groove")
+        self.tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)        
 
 
     def additional_gui_elements(self):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        pass
+        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
 
 
     def setup_columns(self, col_params):
@@ -517,6 +537,14 @@ class View:
         """
         setattr(self, attribute_name, event.widget.get())
         self.controller.show_data(self.current_table)
+
+
+    def delete_tree(self):
+        """
+        Vymaže všechny položky v Treeview.
+        """
+        for item in self.tree.get_children():
+            self.tree.delete(item)        
    
 
     def add_data(self, current_data):
@@ -528,8 +556,7 @@ class View:
         """
         self.current_data = current_data
             
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        self.delete_tree()
 
         filtered_data = self.filter_data(self.current_data)
 
@@ -693,16 +720,14 @@ class View:
         if not children:
             messagebox.showwarning("Upozornění", "Nejsou žádné položky k zobrazení.")
             return
-        
-        selected_items = self.tree.selection()
-        if not selected_items:
-            messagebox.showwarning("Upozornění", "Není vybrána žádná položka k zobrazení.")
-            return
-        
+
+        selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
+        if selected_item is None:
+            return  
+       
         try:        
-            self.selected_item = selected_items[0]
-            self.item_values = self.tree.item(self.selected_item, 'values')
-            self.item_frame_show.show_selected_item_details(self.item_values)
+            item_values = self.tree.item(selected_item, 'values')
+            self.item_frame_show.show_selected_item_details(item_values)
         except Exception as e:
             messagebox.showwarning("Upozornění", f"Při zobrazování došlo k chybě {e}.")
             return
@@ -858,7 +883,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.04 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.1 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -900,6 +925,18 @@ class SkladView(View):
                              "Varianty": [("Přidat variantu", self.add_variant),],
                              }
         return specialized_menus
+
+
+    def additional_gui_elements(self):
+        """
+        Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
+        """
+        self.tree.bind('<<TreeviewSelect>>', self.show_item_and_variants)
+
+        self.item_variants_frame = tk.LabelFrame(self.left_frames_container, height=180,
+                                                 text="Varianty", borderwidth=2, relief="groove")
+        self.item_variants_frame.pack_propagate(False)
+        self.item_variants_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)        
 
 
     def col_parameters(self):
@@ -960,15 +997,14 @@ class SkladView(View):
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
                                               self.item_frame, self.tab2hum, self.check_columns, action)
 
-    def show_variants_in_item_frame(self, event):
-        """
-        Zobrazení variant položky, která byla vybrána dvojklikem.
-        """
-        selected_item = self.select_item()
-        if selected_item is None: return
-        self.controller.show_variants_in_item_frame(self.id_num)
 
-    
+    def show_item_and_variants(self, event=None):
+        """
+        Metoda pro zobrazení označené položky z treeview v item frame a zobrazení variant
+        vybrané položky v item_variants_frame.
+        """
+        self.show_selected_item()
+        self.controller.show_item_variants(self.id_num, self.item_variants_frame)  
 
     
 class AuditLogView(View):
@@ -1002,6 +1038,8 @@ class AuditLogView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
+        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)
+        
         self.operation_label = tk.Label(self.filter_buttons_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -1211,6 +1249,8 @@ class VariantyView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
+        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)
+        
         self.supplier_label = tk.Label(self.filter_buttons_frame, text="Dodavatel:")
         self.supplier_label.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -1255,14 +1295,98 @@ class VariantyView(View):
             match col:          
                 case 'Nazev_varianty':
                     col_params.append({"width": 300, "anchor": "w"})
-                case "Nazev_dilu" | "Dodavatel":
+                case "Nazev_dilu":
                     col_params.append({"width": 200, "anchor": "w", "stretch": tk.YES})
+                case "Dodavatel":
+                    col_params.append({"width": 100, "anchor": "w", "stretch": tk.YES})    
                 case _ if col in self.hidden_columns:
                     col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
                 case _:    
                     col_params.append({"width": 80, "anchor": "center"})
         return col_params
 
+
+class ItemVariantsView(View):
+    """
+    Třída VariantyView pro specifické zobrazení dat z tabulky varianty. Dědí od třídy View.
+    """
+    def __init__(self, root, controller, col_names):
+        """
+        Inicializace specifického zobrazení pro varianty.
+        
+        :param root: Hlavní okno aplikace.
+        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
+        :param col_names: Názvy sloupců pro aktuální zobrazení.
+        """
+        super().__init__(root, controller, current_table = 'varianty')
+        self.col_names = col_names
+        self.customize_ui()
+
+
+    def customize_ui(self):
+        """
+        Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
+        """
+        self.initialize_frames()
+        self.update_frames()
+        self.initialize_treeview()
+        self.setup_columns(self.col_parameters())
+
+
+    def update_frames(self):
+        """
+        Aktualizuje specifické frame pro dané zobrazení.
+        """
+        self.tree_frame = tk.Frame(self.left_frames_container, borderwidth=2, relief="groove")
+        self.tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+    def col_parameters(self):
+        """
+        Nastavení specifických parametrů sloupců, jako jsou šířka a zarovnání.
+        
+        :return: Seznam slovníků parametrů sloupců k rozbalení.
+        """
+        col_params = []     
+        for index, col in enumerate(self.col_names):
+            match col:          
+                case 'Nazev_varianty':
+                    col_params.append({"width": 300, "anchor": "w"})
+                case "Nazev_dilu":
+                    col_params.append({"width": 200, "anchor": "w", "stretch": tk.YES})
+                case "Dodavatel":
+                    col_params.append({"width": 100, "anchor": "w", "stretch": tk.YES})  
+                case _ if col in self.hidden_columns:
+                    col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
+                case _:    
+                    col_params.append({"width": 80, "anchor": "center"})
+        return col_params
+            
+
+    def add_data(self, current_data):
+        """
+        Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
+        Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
+        Zvýraznění řádků pod minimem. Označení první položky v Treeview.
+        Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
+        """                      
+        self.delete_tree()
+
+        for idx, row in enumerate(current_data):      
+            item_id = self.tree.insert('', tk.END, values=row)
+            stripe_tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+            self.tree.item(item_id, tags=(stripe_tag,))
+
+
+    def on_column_click(self, clicked_col):
+        """
+        Metoda pro třídění dat v tabulce podle kliknutí na název sloupce.
+        Pro zobrazení variant skladových položek je třídění zrušeno.
+        
+        :param clicked_col: název sloupce, na který bylo kliknuto.
+        """
+        pass
+            
 
 class ItemFrameBase:
     """
@@ -2031,6 +2155,7 @@ class Controller:
         self.db_path = db_path
         self.model = Model(db_path)
         self.current_view_instance = None
+        self.varianty_view_instance = None
         self.current_user = None
         self.current_role = None
 
@@ -2117,29 +2242,9 @@ class Controller:
     def start_login(self):
         """
         Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
-        """
-        # při programování pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
-        self.current_table = "sklad"
-        data = self.model.fetch_sklad_data()
-        col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
-        self.current_view_instance = SkladView(self.root, self, col_names)
-        self.current_view_instance.add_data(current_data=data)
-        self.current_user = "pilat"
-        self.name_of_user = "Zdeněk Pilát"
-        if sys.platform.startswith('win'):
-            self.root.state('zoomed')
-        else:
-            window_width=1920
-            window_height=1080
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            center_x = int((screen_width/2) - (window_width/2))
-            center_y = int((screen_height/2) - (window_height/2))
-            self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
-
-        
-##        self.current_table = "login"
-##        self.current_view_instance = LoginView(self.root, self, [])
+        """     
+        self.current_table = "login"
+        self.current_view_instance = LoginView(self.root, self, [])
 
 
     def attempt_login(self, username, password_hash):
@@ -2214,7 +2319,7 @@ class Controller:
         self.current_item_instance.add_variant(varianty_item_values)
 
 
-    def show_variants_in_item_frame(self, id_num):
+    def show_item_variants(self, id_num, frame):
         """
         Metoda, která získá data variant dvojklikem vybrané skladové položky a
         pošle je k zobrazení do item_frame.
@@ -2222,18 +2327,20 @@ class Controller:
         :param id_num: evideční číslo dvojklikem vybrané skladové položky.
         :return 
         """
+        table = "varianty"
+        id_col_name = "id_sklad"
+        if self.varianty_view_instance:
+            self.varianty_view_instance.frame.destroy()
         try:
-            variants_data = self.model.fetch_variants_data(id_num, "sklad", "Evidencni_cislo")
+            variants_data = self.model.fetch_item_variants(table, id_num, id_col_name)
+            col_names = list(self.model.fetch_col_names(table)) + ["Dodavatel"]
         except Exception as e:
-            messagebox.showwarning("Varování", f"Nebyly získány data variant z důvodu chyby {e}")
+            messagebox.showwarning("Varování", f"Nebyla získána data variant z důvodu chyby:\n {e}")
             return
-        if not exists_variant:
-            messagebox.showwarning("Varování", "Neexistují žádné varianty vybrané položky.")
+        if not variants_data:
             return
-        print(exists_variant)
-##        self.current_item_instance = ItemFrameVar(master, self, varianty_col_names, tab2hum, varianty_table,
-##                                                   varianty_check_columns, self.current_view_instance)
-##        self.current_item_instance.show_variants(exists_variant)       
+        self.varianty_view_instance = ItemVariantsView(frame, self, col_names)
+        self.varianty_view_instance.add_data(current_data=variants_data)  
 
 
     def check_existence_of_variant(self, id_sklad_value, id_dodavatele_value, current_table):
@@ -2242,7 +2349,11 @@ class Controller:
 
         :return True, když varianta už v tabulce "varianty" existuje, jinak False.
         """
-        exists_variant = self.model.check_existence(id_sklad_value, id_dodavatele_value, current_table)
+        try:
+            exists_variant = self.model.check_existence(id_sklad_value, id_dodavatele_value, current_table)
+        except Exception as e:
+            messagebox.showwarning("Varování", f"Nebyla získána data variant z důvodu chyby:\n {e}")
+            return False           
         return exists_variant
 
 
