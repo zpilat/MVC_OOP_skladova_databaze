@@ -34,6 +34,7 @@ class Model:
         self.cursor.execute(query)
         return tuple(description[0] for description in self.cursor.description)
 
+
     def fetch_data(self, table):
         """
         Načte data z dané tabulky.
@@ -46,17 +47,18 @@ class Model:
         return self.cursor.fetchall()
 
 
-    def fetch_varianty_data(self):
+    def fetch_sklad_data(self):
         """
-        Načte rozšířená data variant, včetně názvů dílů a dodavatelů z ostatních tabulek.
+        Načte rozšířená data z tabulky sklad včetně sloupce s informací, zda je množství pod minimem.
         
         :return: Data variant spolu s názvy dílů a dodavatelů.
         """
         query = """
-        SELECT v.*, s.Nazev_dilu, d.Dodavatel
-        FROM varianty v
-        JOIN sklad s ON v.id_sklad = s.Evidencni_cislo
-        JOIN dodavatele d ON v.id_dodavatele = d.id
+        SELECT *,
+               CASE 
+                   WHEN Mnozstvi_ks_m_l < Min_Mnozstvi_ks THEN 1
+                   ELSE 0
+               END AS 'Pod_minimem' FROM sklad
         """
         self.cursor.execute(query)
         return self.cursor.fetchall()
@@ -157,7 +159,8 @@ class Model:
         :param table: Název tabulky, ve které se má aktualizovat řádek.
         :param id_value: Hodnota ID, podle které se identifikuje řádek k aktualizaci.
         :param id_col_name: Název sloupce, který obsahuje ID pro identifikaci řádku.
-        :param updated_values: Slovník, kde klíče jsou názvy sloupců a hodnoty jsou aktualizované hodnoty pro tyto sloupce.
+        :param updated_values: Slovník, kde klíče jsou názvy sloupců a hodnoty
+                               jsou aktualizované hodnoty pro tyto sloupce.
         """
         set_clause = ', '.join([f"`{key}` = ?" for key in updated_values.keys()])
         values = list(updated_values.values())
@@ -243,9 +246,9 @@ class View:
     """
     Třída View se stará o zobrazení uživatelského rozhraní.
     """
-    table_config = {"sklad": {"check_columns": ('Ucetnictvi', 'Kriticky_dil',),
-                              "hidden_columns": ('Ucetnictvi', 'Kriticky_dil', 'Objednano',),
-                              "special_columns": ('Ucetnictvi', 'Kriticky_dil',),
+    table_config = {"sklad": {"check_columns": ('Pod_minimem', 'Ucetnictvi', 'Kriticky_dil',),
+                              "hidden_columns": ('Pod_minimem', 'Ucetnictvi', 'Kriticky_dil', 'Objednano',),
+                              "special_columns": ('Pod_minimem', 'Ucetnictvi', 'Kriticky_dil',),
                               "id_col_name": 'Evidencni_cislo',
                               "quantity_col": 7,
                               },
@@ -269,7 +272,7 @@ class View:
         """
         self.root = root
         self.controller = controller
-        self.sort_reverse = False
+        self.sort_reverse = True
         self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
                         'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
@@ -286,6 +289,13 @@ class View:
                         'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'}
         self.suppliers_dict = self.controller.fetch_dict("dodavatele")
         self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
+        self.item_names_dict = self.controller.fetch_dict("sklad")
+        self.item_names = tuple(sorted(self.item_names_dict.keys()))
+        self.selected_option = "VŠE"
+        self.selected_supplier = "VŠE"
+        self.selected_item_name = "VŠE"
+        self.start_date = None
+
         
     def customize_ui(self):
         """
@@ -312,51 +322,72 @@ class View:
         self.initialize_treeview(self.tree_frame)
         self.initialize_fonts()
         self.additional_gui_elements()
-        self.selected_option = "VŠE"
-        self.start_date = None
         self.setup_columns(self.col_parameters())    
 
 
     def initialize_menu(self):
-        """
-        Inicializace hlavního společného menu.
-        """
-        self.menu_bar = tk.Menu(self.root)
-        self.root.config(menu=self.menu_bar)
+         """
+         Inicializace hlavního společného menu.
+         """
+         self.menu_bar = tk.Menu(self.root)
+         self.root.config(menu=self.menu_bar)
 
-        common_menus = {
-            "Soubor": [
-                (f"Export databáze {self.current_table} do csv", lambda: self.controller.export_csv(table=self.current_table)),
-                ("Export aktuálně vyfiltrovaných dat do csv", lambda: self.controller.export_csv(tree=self.tree)),
-                "separator",
-                ("Konec", self.root.destroy)
-            ],
-            "Zobrazení": [
-                ("Sklad", lambda: self.controller.show_data('sklad')),
-                ("Varianty", lambda: self.controller.show_data('varianty')),
-                ("Auditovací log", lambda: self.controller.show_data('audit_log')),
-                ("Dodavatelé", lambda: self.controller.show_data('dodavatele')),
-                ("Zařízení", lambda: self.controller.show_data('zarizeni')),
-            ]
-        }
-        self.update_menu(common_menus)  
+         common_menus = {
+             "Soubor": [
+                 (f"Export databáze {self.current_table} do csv", lambda: self.controller.export_csv(table=self.current_table)),
+                 ("Export aktuálně vyfiltrovaných dat do csv", lambda: self.controller.export_csv(tree=self.tree)),
+                 "separator",
+                 ("Konec", self.root.destroy)
+             ],
+         }
+
+         common_radiobutton_menus = {
+             "Zobrazení": [
+                 ("Sklad", 'sklad'),
+                 ("Varianty", 'varianty'),
+                 ("Auditovací log", 'audit_log'),
+                 ("Dodavatelé", 'dodavatele'),
+                 ("Zařízení", 'zarizeni'),
+             ],
+         }
+
+         self.update_menu(common_menus)
+         self.view_var = tk.StringVar()
+         self.view_var.set(self.current_table)
+         self.update_radiobuttons_menu(common_radiobutton_menus, self.view_var)
 
 
-    def initialize_frames(self):        
-        """
-        Inicializace společných framů, proběhne až v instanci dceřínné třídy.
-        """
-        self.frame = tk.Frame(self.root)
-        self.frame.pack(fill=tk.BOTH, expand=True)     
-        self.search_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.search_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
-        self.check_buttons_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.check_buttons_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)        
-        self.tree_frame = tk.Frame(self.frame, borderwidth=2, relief="groove")
-        self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)           
-        self.item_frame = tk.Frame(self.frame, width=435, borderwidth=2, relief="groove")
-        self.item_frame.pack_propagate(False)
-        self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
+    def on_view_change(self):
+         """
+         Přepnutí pohledu na tabulku v menu pomocí radiobuttonů.
+         """
+         selected_view = self.view_var.get()
+         self.controller.show_data(selected_view)
+
+
+    def initialize_frames(self):
+         """
+         Inicializace společných framů, proběhne až v instanci dceřínné třídy.
+         """
+         self.frame = tk.Frame(self.root)
+         self.frame.pack(fill=tk.BOTH, expand=True)
+         self.top_frames_container = tk.Frame(self.frame)
+         self.top_frames_container.pack(side=tk.TOP, fill=tk.X, expand=False)
+         self.search_frame = tk.LabelFrame(self.top_frames_container, text="Vyhledávání",
+                                           borderwidth=2, relief="groove")
+         self.search_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+         self.filter_buttons_frame = tk.LabelFrame(self.top_frames_container, text="Filtrování dle podmínek",
+                                                   borderwidth=2, relief="groove")
+         self.filter_buttons_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+         self.check_buttons_frame = tk.LabelFrame(self.frame, text="Filtrování dle zařízení",
+                                                  borderwidth=2, relief="groove")
+         self.check_buttons_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=False)
+         self.tree_frame = tk.LabelFrame(self.frame, text="Zobrazení položek", borderwidth=2, relief="groove")
+         self.tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+         self.item_frame = tk.LabelFrame(self.frame, text="Podrobné informace o položce", width=435,
+                                         borderwidth=2, relief="groove")
+         self.item_frame.pack_propagate(False)
+         self.item_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=False)
 
 
     def initialize_searching(self):
@@ -364,7 +395,7 @@ class View:
         Inicializace políčka a tlačítka pro vyhledávání / filtrování.
         """
         self.search_entry = tk.Entry(self.search_frame, width=50)
-        self.search_entry.pack(side=tk.LEFT)
+        self.search_entry.pack(side=tk.LEFT, padx=2)
         self.search_entry.bind('<Return>', lambda _: self.controller.show_data(self.current_table))
         self.search_entry.bind("<Escape>", lambda _: self.search_entry.delete(0, tk.END))
         self.search_button = tk.Button(self.search_frame, text="Filtrovat",
@@ -376,25 +407,18 @@ class View:
         """
         Nastavení specifických checkbuttonů pro filtrování zobrazených položek.
         """
-        self.filter_low_stock = tk.BooleanVar(value=False)
         self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
-
-        if self.current_table  == 'sklad':
-            low_stock_checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum['Pod_minimem'],
-                                                   variable=self.filter_low_stock, borderwidth=3, relief="groove",
-                                                   onvalue=True, offvalue=False,
-                                                   command=lambda: self.controller.show_data(self.current_table))
-            low_stock_checkbutton.pack(side='left', padx=5, pady=5)
-            
+          
         for col in self.filter_columns:
             if col in self.special_columns:
-                checkbutton = tk.Checkbutton(self.search_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
-                                             borderwidth=3, relief="groove", onvalue=True, offvalue=False,
+                checkbutton = tk.Checkbutton(self.filter_buttons_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
+                                             borderwidth=3, relief="groove", onvalue=True, offvalue=False, 
                                              command=lambda col=col: self.toggle_filter(col))
+                checkbutton.pack(side='left', padx=5, pady=5)
             else:
                 checkbutton = tk.Checkbutton(self.check_buttons_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
                                              onvalue=True, offvalue=False, command=lambda col=col: self.toggle_filter(col))
-            checkbutton.pack(side='left', pady=5)
+                checkbutton.pack(side='left', pady=5)
 
 
     def initialize_treeview(self, tree_frame):
@@ -445,6 +469,24 @@ class View:
                     item_name, command = item
                     new_menu.add_command(label=item_name, command=command)
             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
+            
+
+    def update_radiobuttons_menu(self, additional_radiobutton_menus, str_variable):
+         """
+         Aktualizuje hlavní menu aplikace přidáním nových radiobutton menu.
+
+         Parametry:
+             additional_radiobuttons_menus (dict): Slovník definující radiobuttony menu k přidání.
+                                                   Klíč slovníku je název menu a hodnota je seznam
+                                                   dvojic (název položky, tabulka).
+         """
+         for menu_name, menu_items in additional_radiobutton_menus.items():
+             new_menu = tk.Menu(self.menu_bar, tearoff=0)
+             for item in menu_items:
+                 item_name, table = item
+                 new_menu.add_radiobutton(label=item_name, variable=str_variable,
+                                          value=table, command=self.on_view_change)
+             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)            
 
 
     def update_frames(self):
@@ -473,12 +515,13 @@ class View:
             self.tree.column(col, **col_params[idx])
 
 
-    def on_combobox_change(self, event):
+    def on_combobox_change(self, event, attribute_name):
         """
-        Filtrování zobrazovaných dat podle eventu (vybraného filtru) comboboxu.
+        Aktualizuje příslušný atribut na základě vybrané hodnoty v comboboxu
+        a filtruje zobrazovaná data podle aktuálních vybraných hodnot.
         """
-        self.selected_option = self.operation_combobox.get()         
-        self.controller.show_data(self.current_table)            
+        setattr(self, attribute_name, event.widget.get())
+        self.controller.show_data(self.current_table)
    
 
     def add_data(self, current_data=None):
@@ -523,17 +566,16 @@ class View:
             filtered_data = [row for row in data if search_query.lower() in " ".join(map(str, row)).lower()]
         else:
             filtered_data = data
-
-        if self.filter_low_stock.get():
-            filtered_data = [row for row in filtered_data if int(row[7]) < int(row[4])]
-        
+    
         if self.current_table == "audit_log":
-            if self.selected_option in ["PŘÍJEM", "VÝDEJ"]:
+            if self.selected_option != "VŠE":
                 filtered_data = [row for row in filtered_data if row[9] == self.selected_option]
 
         if self.current_table == "varianty":
-            if self.selected_option in self.suppliers:
-                filtered_data = [row for row in filtered_data if row[-2] == self.selected_option]            
+            if self.selected_supplier != "VŠE":
+                filtered_data = [row for row in filtered_data if row[-2] == self.selected_supplier]
+            if self.selected_item_name != "VŠE":
+                filtered_data = [row for row in filtered_data if row[-3] == self.selected_item_name]                
 
         if self.start_date:       
             filtered_data = [row for row in filtered_data if self.start_date <= (row[13] or row[14]) <= self.end_date]
@@ -822,7 +864,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.01 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.03 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -958,21 +1000,22 @@ class AuditLogView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.operation_label = tk.Label(self.search_frame, text="Typ operace:")
+        self.operation_label = tk.Label(self.filter_buttons_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
-        self.operation_combobox = ttk.Combobox(self.search_frame, values=options, state="readonly")
+        self.operation_combobox = ttk.Combobox(self.filter_buttons_frame, values=options, state="readonly")
         self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
 
         self.operation_combobox.set("VŠE")
-        self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)
+        self.operation_combobox.bind("<<ComboboxSelected>>",
+                                     lambda event, attr='selected_option': self.on_combobox_change(event, attr))
 
-        self.month_entry_label = tk.Label(self.search_frame, text="Výběr měsíce:")
+        self.month_entry_label = tk.Label(self.filter_buttons_frame, text="Výběr měsíce:")
         self.month_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.generate_months_list()
-        self.month_entry_combobox = ttk.Combobox(self.search_frame, width=12,
+        self.month_entry_combobox = ttk.Combobox(self.filter_buttons_frame, width=12,
                                                  values=["VŠE"]+self.months_list, state="readonly")
         self.month_entry_combobox.pack(side=tk.LEFT, padx=5, pady=5)
         self.month_entry_combobox.set("VŠE")
@@ -1058,6 +1101,8 @@ class DodavateleView(View):
         self.current_table = 'dodavatele'
         self.col_names = col_names
         self.customize_ui()
+        self.click_col = 1
+        self.sort_reverse = False
 
 
     def spec_menus(self):
@@ -1109,6 +1154,7 @@ class ZarizeniView(View):
         self.current_table = 'zarizeni'
         self.col_names = col_names
         self.customize_ui()
+        self.sort_reverse = False
 
 
     def spec_menus(self):
@@ -1166,15 +1212,27 @@ class VariantyView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.operation_label = tk.Label(self.search_frame, text="Dodavatel:")
-        self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
+        self.supplier_label = tk.Label(self.filter_buttons_frame, text="Dodavatel:")
+        self.supplier_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         options = ("VŠE",) + self.suppliers
-        self.operation_combobox = ttk.Combobox(self.search_frame, values=options, state="readonly")
-        self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
+        self.supplier_combobox = ttk.Combobox(self.filter_buttons_frame, values=options, state="readonly")
+        self.supplier_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
 
-        self.operation_combobox.set("VŠE")
-        self.operation_combobox.bind("<<ComboboxSelected>>", self.on_combobox_change)        
+        self.supplier_combobox.set("VŠE")
+        self.supplier_combobox.bind("<<ComboboxSelected>>",
+                                     lambda event, attr='selected_supplier': self.on_combobox_change(event, attr))
+        
+        self.item_name_label = tk.Label(self.filter_buttons_frame, text="Název dílu")
+        self.item_name_label.pack(side=tk.LEFT, padx=5, pady=5)
+
+        options = ("VŠE",) + self.item_names
+        self.item_name_combobox = ttk.Combobox(self.filter_buttons_frame, values=options, width=50, state="readonly")
+        self.item_name_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
+
+        self.item_name_combobox.set("VŠE")
+        self.item_name_combobox.bind("<<ComboboxSelected>>",
+                                     lambda event, attr='selected_item_name': self.on_combobox_change(event, attr))           
 
 
     def spec_menus(self):
@@ -1404,11 +1462,11 @@ class ItemFrameBase:
                 success = self.controller.add_column_and_set_default(self.new_col_name)
                 if not success: return
             success = self.controller.insert_new_item(self.current_table, col_names_to_save, values_to_insert)
+            if not success: return
         elif action == "edit" and self.id_num is not None:
             success = self.controller.update_row(self.current_table, self.id_num, self.id_col_name, combined_values)
-        if not success:
-            return
-            
+            if not success: return
+        
         self.controller.show_data(self.current_table)
 
 
@@ -1579,7 +1637,7 @@ class ItemFrameEdit(ItemFrameBase):
                                         },                           
                            "varianty": {"read_only": ('id', 'id_sklad', 'id_dodavatele',),
                                         "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
-                                        "pos_real":('Jednotkova_cena_EUR',),
+                                        "not_neg_real":('Jednotkova_cena_EUR',),
                                         "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
                                         }
                            }
@@ -1740,12 +1798,13 @@ class ItemFrameMovements(ItemFrameBase):
         self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())
 
 
-    def enter_item_movements(self, action, item_values, audit_log_col_names):
+    def init_item_movements(self, action, item_values, audit_log_col_names):
         """
-        Metoda pro příjem a výdej skladových položek.
+        Metoda pro inicializace proměnných pro příjem a výdej skladových položek.
 
         :params action: Parametr s názvem akce příjem nebo výdej zboží - "prijem", "vydej".
-        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+                item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+                audit_log_col_names: N-tice názvů sloupců tabulky audit_log.      
         """
         self.action = action
         self.item_values = item_values
@@ -1758,7 +1817,18 @@ class ItemFrameMovements(ItemFrameBase):
         self.entries_al = {}
         self.actual_quantity = int(self.item_values[self.curr_table_config["quantity_col"]])
         self.actual_unit_price = float(self.item_values[self.curr_table_config["unit_price_col"]])
-       
+
+
+    def enter_item_movements(self, action, item_values, audit_log_col_names):
+        """
+        Metoda pro příjem a výdej skladových položek.
+
+        :params action: Parametr s názvem akce příjem nebo výdej zboží - "prijem", "vydej".
+                item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+                audit_log_col_names: N-tice názvů sloupců tabulky audit_log.    
+        """
+        self.init_item_movements(action, item_values, audit_log_col_names)
+        
         if self.action=='vydej' and self.actual_quantity==0:
             self.current_view_instance.show_selected_item()
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
@@ -1958,8 +2028,11 @@ class Controller:
         :param table: pro výběr tabulky, ze které se získávají data.
         :return slovník dodavatelů nebo zařízení s jejich id jako hodnotou.
         """
-        data = self.model.fetch_data(table)            
-        return {row[1]: row[0] for row in data}
+        data = self.model.fetch_data(table)
+        if table == "sklad":
+            name=6
+        else: name=1
+        return {row[name]: row[0] for row in data}
 
 
     def get_max_id(self, curr_table, id_col_name):
@@ -1983,6 +2056,9 @@ class Controller:
         if table == 'varianty':
             data = self.model.fetch_varianty_data()
             col_names = list(self.model.fetch_col_names(table)) + ["Nazev_dilu", "Dodavatel", "Pod_minimem"]
+        elif table == 'sklad':
+            data = self.model.fetch_sklad_data()
+            col_names = list(self.model.fetch_col_names(table)) + ["Pod_minimem"]
         else:
             data = self.model.fetch_data(table)
             col_names = self.model.fetch_col_names(table)
@@ -2028,8 +2104,21 @@ class Controller:
         """
         Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
         """
-        self.current_table = "login"
-        self.current_view_instance = LoginView(self.root, self, [])
+        # při programování pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
+        self.current_table = "sklad"
+        data = self.model.fetch_sklad_data()
+        col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
+        self.current_view_instance = SkladView(self.root, self, col_names)
+        self.current_view_instance.add_data(current_data=data)
+        self.current_user = "pilat"
+        self.name_of_user = "Zdeněk Pilát"
+        if sys.platform.startswith('win'):
+            root.state('zoomed')
+        else:
+            self.place_window(1920, 1080)
+        
+##        self.current_table = "login"
+##        self.current_view_instance = LoginView(self.root, self, [])
 
 
     def attempt_login(self, username, password_hash):
@@ -2172,7 +2261,8 @@ class Controller:
         """
         try:
             self.model.add_integer_column_with_default(new_col_name)
-            messagebox.showinfo("Informace", f"Sloupec {new_col_name} byl úspěšně přidán do tabulky sklad s výchozími hodnotami 0.")
+            messagebox.showinfo("Informace",
+                                f"Sloupec {new_col_name} byl úspěšně přidán do tabulky sklad s výchozími hodnotami 0.")
         except Exception as e:
             messagebox.showerror("Chyba", f"Nastala chyba při přidávání sloupce {new_col_name}: {e}")
             return False
