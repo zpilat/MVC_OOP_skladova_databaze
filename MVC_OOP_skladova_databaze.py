@@ -263,7 +263,7 @@ class View:
                     }
     
 
-    def __init__(self, root, controller):
+    def __init__(self, root, controller, current_table=None):
         """
         Inicializace GUI a nastavení hlavního okna.
         
@@ -272,6 +272,7 @@ class View:
         """
         self.root = root
         self.controller = controller
+        self.current_table = current_table
         self.sort_reverse = True
         self.item_frame_show = None         
         self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -295,12 +296,6 @@ class View:
         self.selected_supplier = "VŠE"
         self.selected_item_name = "VŠE"
         self.start_date = None
-
-        
-    def customize_ui(self):
-        """
-        Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
-        """
         self.curr_table_config = View.table_config.get(self.current_table, {})
         if self.current_table == "sklad":
             devices = tuple(self.controller.fetch_dict("zarizeni").keys())
@@ -310,9 +305,19 @@ class View:
         self.check_columns = self.curr_table_config.get("check_columns", [])
         self.hidden_columns = self.curr_table_config.get("hidden_columns", [])
         self.special_columns = self.curr_table_config.get("special_columns", [])
+        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
         self.id_col = 0
         self.click_col = 0
-        self.id_col_name = self.curr_table_config.get("id_col_name", 'id')  
+        self.id_col_name = self.curr_table_config.get("id_col_name", 'id')
+        self.default_font = tkFont.nametofont("TkDefaultFont")
+        self.custom_font = self.default_font.copy()
+        self.custom_font.config(size=12, weight="bold")
+
+        
+    def customize_ui(self):
+        """
+        Přidání specifických menu a framů a labelů pro zobrazení informací o skladu.
+        """
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
@@ -320,7 +325,6 @@ class View:
         self.update_frames()
         self.initialize_check_buttons()
         self.initialize_treeview(self.tree_frame)
-        self.initialize_fonts()
         self.additional_gui_elements()
         self.setup_columns(self.col_parameters())    
 
@@ -406,9 +410,7 @@ class View:
     def initialize_check_buttons(self):
         """
         Nastavení specifických checkbuttonů pro filtrování zobrazených položek.
-        """
-        self.filter_columns = {col: tk.BooleanVar(value=False) for col in self.check_columns}
-          
+        """         
         for col in self.filter_columns:
             if col in self.special_columns:
                 checkbutton = tk.Checkbutton(self.filter_buttons_frame, text=self.tab2hum.get(col, col), variable=self.filter_columns[col],
@@ -438,15 +440,6 @@ class View:
         self.tree.tag_configure('oddrow', background='#F5F5F5')
         self.tree.tag_configure('low_stock', foreground='#CD5C5C')
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)          
-
-
-    def initialize_fonts(self):
-        """
-        Inicializace používaných fontů.
-        """ 
-        self.default_font = tkFont.nametofont("TkDefaultFont")
-        self.custom_font = self.default_font.copy()
-        self.custom_font.config(size=12, weight="bold")               
 
 
     def update_menu(self, additional_menus):
@@ -524,15 +517,14 @@ class View:
         self.controller.show_data(self.current_table)
    
 
-    def add_data(self, current_data=None):
+    def add_data(self, current_data):
         """
         Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
         Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
         Zvýraznění řádků pod minimem. Označení první položky v Treeview.
         Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
         """
-        if current_data:
-            self.current_data = current_data
+        self.current_data = current_data
             
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -886,8 +878,7 @@ class SkladView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller)
-        self.current_table = 'sklad'
+        super().__init__(root, controller, current_table = 'sklad')
         self.col_names = col_names
         self.customize_ui()
 
@@ -980,8 +971,7 @@ class AuditLogView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller)
-        self.current_table = 'audit_log'
+        super().__init__(root, controller, current_table = 'audit_log')
         self.col_names = col_names   
         self.customize_ui()
 
@@ -1097,8 +1087,7 @@ class DodavateleView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller)
-        self.current_table = 'dodavatele'
+        super().__init__(root, controller, current_table = 'dodavatele')
         self.col_names = col_names
         self.customize_ui()
         self.click_col = 1
@@ -1150,8 +1139,7 @@ class ZarizeniView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller)
-        self.current_table = 'zarizeni'
+        super().__init__(root, controller, current_table = 'zarizeni')
         self.col_names = col_names
         self.customize_ui()
         self.sort_reverse = False
@@ -1202,8 +1190,7 @@ class VariantyView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller)
-        self.current_table = 'varianty'
+        super().__init__(root, controller, current_table = 'varianty')
         self.col_names = col_names
         self.customize_ui()
 
@@ -1223,7 +1210,7 @@ class VariantyView(View):
         self.supplier_combobox.bind("<<ComboboxSelected>>",
                                      lambda event, attr='selected_supplier': self.on_combobox_change(event, attr))
         
-        self.item_name_label = tk.Label(self.filter_buttons_frame, text="Název dílu")
+        self.item_name_label = tk.Label(self.filter_buttons_frame, text="Skladová položka")
         self.item_name_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         options = ("VŠE",) + self.item_names
@@ -2113,9 +2100,16 @@ class Controller:
         self.current_user = "pilat"
         self.name_of_user = "Zdeněk Pilát"
         if sys.platform.startswith('win'):
-            root.state('zoomed')
+            self.root.state('zoomed')
         else:
-            self.place_window(1920, 1080)
+            window_width=1920
+            window_height=1080
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            center_x = int((screen_width/2) - (window_width/2))
+            center_y = int((screen_height/2) - (window_height/2))
+            self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+
         
 ##        self.current_table = "login"
 ##        self.current_view_instance = LoginView(self.root, self, [])
