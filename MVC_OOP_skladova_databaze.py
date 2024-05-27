@@ -343,9 +343,11 @@ class View:
         self.initialize_frames()
         self.initialize_searching()
         self.update_menu(self.spec_menus())
+        self.update_context_menu()
         self.update_frames()
         self.initialize_check_buttons()
         self.initialize_treeview()
+        self.initialize_bindings()
         self.additional_gui_elements()
         self.setup_columns(self.col_parameters())    
 
@@ -455,7 +457,15 @@ class View:
 
         self.tree.tag_configure('evenrow', background='#FFFFFF')
         self.tree.tag_configure('oddrow', background='#F5F5F5')
-        self.tree.tag_configure('low_stock', foreground='#CD5C5C')            
+        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
+
+
+    def initialize_bindings(self):
+        """
+        Vytvoření provázání na události.
+        """
+        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
+        self.tree.bind('<Button-3>', self.on_right_click)
 
 
     def update_menu(self, additional_menus):
@@ -478,7 +488,7 @@ class View:
                     item_name, command = item
                     new_menu.add_command(label=item_name, command=command)
             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
-            
+          
 
     def update_radiobuttons_menu(self, additional_radiobutton_menus, str_variable):
          """
@@ -495,7 +505,15 @@ class View:
                  item_name, table = item
                  new_menu.add_radiobutton(label=item_name, variable=str_variable,
                                           value=table, command=self.on_view_change)
-             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)            
+             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
+
+
+    def update_context_menu(self):
+         """
+         Vytvoří kontextové menu aplikace při kliknutí pravým tlačítkem na položku v Treeview.
+         """
+         self.context_menu = tk.Menu(root, tearoff=0)
+         self.context_menu.add_command(label="Uprav položku", command=self.edit_selected_item)
 
 
     def update_frames(self):
@@ -515,7 +533,7 @@ class View:
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
+        pass
 
 
     def setup_columns(self, col_params):
@@ -544,7 +562,18 @@ class View:
         Vymaže všechny položky v Treeview.
         """
         for item in self.tree.get_children():
-            self.tree.delete(item)        
+            self.tree.delete(item)
+
+
+    def on_right_click(self, event):
+        """
+        Zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
+        """
+        selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
+        if selected_item is None:
+            return  
+        x, y, _, _ = self.tree.bbox(selected_item)
+        self.context_menu.post(event.x_root, event.y_root)            
    
 
     def add_data(self, current_data):
@@ -883,7 +912,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.1 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.11 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -931,8 +960,8 @@ class SkladView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.tree.bind('<<TreeviewSelect>>', self.show_item_and_variants)
-
+        self.tree.bind('<<TreeviewSelect>>', self.show_item_and_variants)  
+        
         self.item_variants_frame = tk.LabelFrame(self.left_frames_container, height=180,
                                                  text="Varianty", borderwidth=2, relief="groove")
         self.item_variants_frame.pack_propagate(False)
@@ -1038,8 +1067,6 @@ class AuditLogView(View):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
         """
-        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)
-        
         self.operation_label = tk.Label(self.filter_buttons_frame, text="Typ operace:")
         self.operation_label.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -1122,8 +1149,14 @@ class AuditLogView(View):
                     col_params.append({"width": 0, "minwidth": 0, "stretch": tk.NO})
                 case _:    
                     col_params.append({"width": 80, "anchor": "center"})
-        return col_params 
+        return col_params
 
+
+    def on_right_click(self, event):
+        """
+        Zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
+        """    
+        pass
 
 class DodavateleView(View):
     """
@@ -1248,9 +1281,7 @@ class VariantyView(View):
     def additional_gui_elements(self):
         """
         Vytvoření zbývajících specifických prvků gui dle typu zobrazovaných dat.
-        """
-        self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)
-        
+        """   
         self.supplier_label = tk.Label(self.filter_buttons_frame, text="Dodavatel:")
         self.supplier_label.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -2242,9 +2273,29 @@ class Controller:
     def start_login(self):
         """
         Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
-        """     
-        self.current_table = "login"
-        self.current_view_instance = LoginView(self.root, self, [])
+        """
+        # při programování pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
+        self.current_table = "sklad"
+        data = self.model.fetch_sklad_data()
+        col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
+        self.current_view_instance = SkladView(self.root, self, col_names)
+        self.current_view_instance.add_data(current_data=data)
+        self.current_user = "pilat"
+        self.name_of_user = "Zdeněk Pilát"
+        if sys.platform.startswith('win'):
+            self.root.state('zoomed')
+        else:
+            window_width=1920
+            window_height=1080
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            center_x = int((screen_width/2) - (window_width/2))
+            center_y = int((screen_height/2) - (window_height/2))
+            self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+
+        
+##        self.current_table = "login"
+##        self.current_view_instance = LoginView(self.root, self, [])
 
 
     def attempt_login(self, username, password_hash):
