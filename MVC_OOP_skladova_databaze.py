@@ -576,29 +576,39 @@ class View:
         self.context_menu.post(event.x_root, event.y_root)            
    
 
-    def add_data(self, current_data):
+    def add_data(self, current_data, current_id_num=None):
         """
         Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
         Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
         Zvýraznění řádků pod minimem. Označení první položky v Treeview.
         Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
-        """
-        self.current_data = current_data
-            
+
+        :param current_data: aktuální data získaná z aktuální tabulky.
+        :param current_id_num: id číslo aktuální položky k označení, pokud None, tak se označí první.        
+        """          
         self.delete_tree()
 
-        filtered_data = self.filter_data(self.current_data)
-
-        sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
-
+        if self.current_table == "item_variants":
+            sorted_data = current_data
+        else:
+            filtered_data = self.filter_data(current_data)
+            sorted_data = sorted(filtered_data, key=self.sort_key, reverse=self.sort_reverse)
+        
+        treeview_item_ids = {}
         for idx, row in enumerate(sorted_data):      
-            item_id = self.tree.insert('', tk.END, values=row)
+            treeview_item_id = self.tree.insert('', tk.END, values=row)
+            treeview_item_ids[row[0]] = treeview_item_id
             stripe_tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
             if self.current_table == 'sklad' and int(row[7]) < int(row[4]):
-                self.tree.item(item_id, tags=(stripe_tag, 'low_stock',))
-            else: self.tree.item(item_id, tags=(stripe_tag,))
+                self.tree.item(treeview_item_id, tags=(stripe_tag, 'low_stock',))
+            else: 
+                self.tree.item(treeview_item_id, tags=(stripe_tag,))
 
-        self.mark_first_item()
+        if current_id_num and current_id_num in treeview_item_ids:
+            self.tree.selection_set(treeview_item_ids[current_id_num])
+            self.tree.see(treeview_item_ids[current_id_num])
+        else:
+            self.mark_first_item() 
         
 
     def filter_data(self, data):
@@ -681,7 +691,7 @@ class View:
         else:
             self.click_col = clicked_col
             self.sort_reverse = False
-        self.controller.show_data(self.current_table)
+        self.controller.show_data(self.current_table, self.id_num)
 
         
     def sort_key(self, row):
@@ -912,7 +922,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.11 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.20 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1349,7 +1359,7 @@ class ItemVariantsView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'varianty')
+        super().__init__(root, controller, current_table = 'item_variants')
         self.col_names = col_names
         self.customize_ui()
 
@@ -1393,21 +1403,6 @@ class ItemVariantsView(View):
                     col_params.append({"width": 80, "anchor": "center"})
         return col_params
             
-
-    def add_data(self, current_data):
-        """
-        Vymazání všech dat v Treeview. Filtrace a třídění dle aktuálních hodnot parametrů.
-        Vložení dat do TreeView. Změna hodnot v check_colums z 0/1 na NE/ANO pro zobrazení.
-        Zvýraznění řádků pod minimem. Označení první položky v Treeview.
-        Třídění podle zakliknuté hlavičky sloupce, při druhém kliknutí na stejný sloupec reverzně.
-        """                      
-        self.delete_tree()
-
-        for idx, row in enumerate(current_data):      
-            item_id = self.tree.insert('', tk.END, values=row)
-            stripe_tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
-            self.tree.item(item_id, tags=(stripe_tag,))
-
 
     def on_column_click(self, clicked_col):
         """
@@ -1622,11 +1617,11 @@ class ItemFrameBase:
                 if not success: return
             success = self.controller.insert_new_item(self.current_table, col_names_to_save, values_to_insert)
             if not success: return
+            self.id_num = int(self.new_id)
         elif action == "edit" and self.id_num is not None:
             success = self.controller.update_row(self.current_table, self.id_num, self.id_col_name, combined_values)
             if not success: return
-        
-        self.controller.show_data(self.current_table)
+        self.controller.show_data(self.current_table, self.id_num)
 
 
     def show_for_editing(self):
@@ -2125,7 +2120,7 @@ class ItemFrameMovements(ItemFrameBase):
             else:
                 pass # uložit aktuální jednotkovou cenu do varianty
 
-        self.controller.show_data(self.current_table)
+        self.controller.show_data(self.current_table, self.id_num)
         
 
     def calculate_before_save_to_audit_log(self):
@@ -2215,7 +2210,7 @@ class Controller:
         return self.model.get_max_id(curr_table, id_col_name)
     
 
-    def show_data(self, table):
+    def show_data(self, table, current_id_num=None):
         """
         Získání a zobrazení dat z vybrané tabulky v GUI. Pokud se mění tabulka k zobrazení,
         vytvoří se nová instance podtřídy View, pokud zůstává tabulka
@@ -2251,8 +2246,11 @@ class Controller:
             else:
                 messagebox.showwarning("Varování", "Nebyla vytvořena nová instance třídy View.")
                 return
-
-        self.current_view_instance.add_data(current_data=data)
+        
+        if current_id_num:
+            self.current_view_instance.add_data(data, current_id_num=current_id_num)
+        else:
+            self.current_view_instance.add_data(data)
 
 
     def show_data_for_editing(self, table, id_num, id_col_name, master, tab2hum, check_columns):
@@ -2279,7 +2277,7 @@ class Controller:
         data = self.model.fetch_sklad_data()
         col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
         self.current_view_instance = SkladView(self.root, self, col_names)
-        self.current_view_instance.add_data(current_data=data)
+        self.current_view_instance.add_data(data)
         self.current_user = "pilat"
         self.name_of_user = "Zdeněk Pilát"
         if sys.platform.startswith('win'):
@@ -2391,7 +2389,7 @@ class Controller:
         if not variants_data:
             return
         self.varianty_view_instance = ItemVariantsView(frame, self, col_names)
-        self.varianty_view_instance.add_data(current_data=variants_data)  
+        self.varianty_view_instance.add_data(variants_data)  
 
 
     def check_existence_of_variant(self, id_sklad_value, id_dodavatele_value, current_table):
