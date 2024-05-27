@@ -569,10 +569,10 @@ class View:
         """
         Zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
         """
-        selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
-        if selected_item is None:
+        self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
+        if self.selected_item is None:
             return  
-        x, y, _, _ = self.tree.bbox(selected_item)
+        x, y, _, _ = self.tree.bbox(self.selected_item)
         self.context_menu.post(event.x_root, event.y_root)            
    
 
@@ -760,12 +760,12 @@ class View:
             messagebox.showwarning("Upozornění", "Nejsou žádné položky k zobrazení.")
             return
 
-        selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
-        if selected_item is None:
+        self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
+        if self.selected_item is None:
             return  
        
         try:        
-            item_values = self.tree.item(selected_item, 'values')
+            item_values = self.tree.item(self.selected_item, 'values')
             self.item_frame_show.show_selected_item_details(item_values)
         except Exception as e:
             messagebox.showwarning("Upozornění", f"Při zobrazování došlo k chybě {e}.")
@@ -777,8 +777,8 @@ class View:
         Metoda pro získání aktuálních dat z databáze pro vybranou položku a jejich zobrazení
         pro editaci.
         """
-        selected_item = self.select_item()
-        if selected_item is None:
+        self.selected_item = self.select_item()
+        if self.selected_item is None:
             return       
         self.widget_destroy()    
         self.item_frame_show = None
@@ -791,8 +791,8 @@ class View:
         Metoda pro získání aktuálních dat z databáze pro vybranou položku a jejich zobrazení
         pro tvorbu nové varianty.
         """
-        selected_item = self.select_item()
-        if selected_item is None: return
+        self.selected_item = self.select_item()
+        if self.selected_item is None: return
         self.widget_destroy()
         self.item_frame_show = None
         varianty_table = "varianty"
@@ -1004,8 +1004,8 @@ class SkladView(View):
         """
         Vymaže označenou položku, pokud je to poslední zadaná položka a je nulový stav.
         """
-        selected_item = self.select_item()
-        if selected_item is None:
+        self.selected_item = self.select_item()
+        if self.selected_item is None:
             return
         last_inserted_item = self.controller.get_max_id(self.current_table, self.id_col_name)
         mnozstvi = self.tree.item(self.selected_item)['values'][self.mnozstvi_col]
@@ -1029,8 +1029,7 @@ class SkladView(View):
         """
         Implementace funkcionality pro příjem a výdej zboží ve skladu.
         """
-        selected_item = self.select_item()
-        if selected_item is None: return
+        if self.selected_item is None: return
         self.widget_destroy()            
         self.item_frame_show = None
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
