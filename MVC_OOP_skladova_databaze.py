@@ -571,7 +571,8 @@ class View:
         """
         self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
         if self.selected_item is None:
-            return  
+            return
+        self.tree.see(self.selected_item)
         x, y, _, _ = self.tree.bbox(self.selected_item)
         self.context_menu.post(event.x_root, event.y_root)            
    
@@ -922,7 +923,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.22 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.23 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
