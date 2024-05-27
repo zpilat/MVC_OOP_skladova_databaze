@@ -922,7 +922,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.20 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.22 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1371,6 +1371,15 @@ class ItemVariantsView(View):
         self.update_frames()
         self.initialize_treeview()
         self.setup_columns(self.col_parameters())
+        self.initialize_bindings()
+        self.update_context_menu()
+
+
+    def initialize_bindings(self):
+        """
+        Vytvoření provázání na události.
+        """
+        self.tree.bind('<Button-3>', self.on_right_click)        
 
 
     def update_frames(self):
@@ -1379,6 +1388,14 @@ class ItemVariantsView(View):
         """
         self.tree_frame = tk.Frame(self.left_frames_container, borderwidth=2, relief="groove")
         self.tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+    def update_context_menu(self):
+         """
+         Vytvoří kontextové menu aplikace při kliknutí pravým tlačítkem na položku v Treeview.
+         """
+         self.context_menu = tk.Menu(self.root, tearoff=0)
+         self.context_menu.add_command(label="Zobraz variantu", command=self.show_selected_variant)        
 
 
     def col_parameters(self):
@@ -1411,6 +1428,15 @@ class ItemVariantsView(View):
         :param clicked_col: název sloupce, na který bylo kliknuto.
         """
         pass
+
+
+    def show_selected_variant(self):
+        """
+        Metoda pro získání aktuálních dat z databáze pro vybranou položku a jejich zobrazení
+        pro editaci.
+        """
+        table="varianty"
+        self.controller.show_data(table, self.id_num)     
             
 
 class ItemFrameBase:
