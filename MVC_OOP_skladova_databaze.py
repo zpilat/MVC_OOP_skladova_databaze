@@ -421,6 +421,7 @@ class View:
         self.search_entry = tk.Entry(self.search_frame, width=50)
         self.search_entry.pack(side=tk.LEFT, padx=2)
         self.search_entry.bind('<Return>', lambda _: self.controller.show_data(self.current_table))
+        self.search_entry.bind('<KP_Enter>', lambda _: self.controller.show_data(self.current_table))
         self.search_entry.bind("<Escape>", lambda _: self.search_entry.delete(0, tk.END))
         self.search_button = tk.Button(self.search_frame, text="Filtrovat",
                                        command=lambda: self.controller.show_data(self.current_table))
@@ -903,8 +904,8 @@ class LoginView(View):
         self.password_entry.grid(row=2, column=1, padx=5, pady=20)
         login_button.grid(row=3, column=0, columnspan=2, pady=30)
 
-        self.username_entry.bind('<Return>', lambda _: self.attempt_login())
         self.password_entry.bind('<Return>', lambda _: self.attempt_login())
+        self.password_entry.bind('<KP_Enter>', lambda _: self.attempt_login())               
 
         self.username_entry.focus()
 
@@ -943,7 +944,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.32 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.33 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1691,6 +1692,7 @@ class ItemFrameBase:
                             entry.insert(0, self.item_values[index])                                              
                 entry.pack(fill=tk.X, padx=2, pady=3)
                 entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
+                entry.bind('<KP_Enter>', lambda event: self.check_before_save(action=self.action))                               
                 entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
                 self.entries[col] = entry
                 if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
@@ -2030,6 +2032,7 @@ class ItemFrameMovements(ItemFrameBase):
                 entry_al = tk.Entry(self.left_frame)                        
             entry_al.grid(row=idx, column=1, sticky="ew", padx=5, pady=2)
             entry_al.bind('<Return>', lambda event: self.check_before_save(action=self.action))
+            entry_al.bind('<KP_Enter>', lambda event: self.check_before_save(action=self.action))                        
             entry_al.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
             
             if col in self.curr_entry_dict.get("mandatory",[]): entry_al.config(background='yellow')
