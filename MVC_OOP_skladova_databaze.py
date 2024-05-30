@@ -342,7 +342,7 @@ class View:
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
-        self.update_menu(self.spec_menus())
+        self.update_menu(self.specialized_menus)
         self.update_context_menu()
         self.update_frames()
         self.initialize_check_buttons()
@@ -491,29 +491,41 @@ class View:
           
 
     def update_radiobuttons_menu(self, additional_radiobutton_menus, str_variable):
-         """
-         Aktualizuje hlavní menu aplikace přidáním nových radiobutton menu.
+        """
+        Aktualizuje hlavní menu aplikace přidáním nových radiobutton menu.
 
-         Parametry:
-             additional_radiobuttons_menus (dict): Slovník definující radiobuttony menu k přidání.
-                                                   Klíč slovníku je název menu a hodnota je seznam
-                                                   dvojic (název položky, tabulka).
-         """
-         for menu_name, menu_items in additional_radiobutton_menus.items():
-             new_menu = tk.Menu(self.menu_bar, tearoff=0)
-             for item in menu_items:
-                 item_name, table = item
-                 new_menu.add_radiobutton(label=item_name, variable=str_variable,
-                                          value=table, command=self.on_view_change)
-             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
+        Parametry:
+            additional_radiobuttons_menus (dict): Slovník definující radiobuttony menu k přidání.
+                                                  Klíč slovníku je název menu a hodnota je seznam
+                                                  dvojic (název položky, tabulka).
+        """
+        for menu_name, menu_items in additional_radiobutton_menus.items():
+            new_menu = tk.Menu(self.menu_bar, tearoff=0)
+            for item in menu_items:
+                item_name, table = item
+                new_menu.add_radiobutton(label=item_name, variable=str_variable,
+                                         value=table, command=self.on_view_change)
+            self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
 
 
     def update_context_menu(self):
-         """
-         Vytvoří kontextové menu aplikace při kliknutí pravým tlačítkem na položku v Treeview.
-         """
-         self.context_menu = tk.Menu(root, tearoff=0)
-         self.context_menu.add_command(label="Uprav položku", command=self.edit_selected_item)
+        """
+        Vytvoří kontextové menu aplikace při kliknutí pravým tlačítkem na položku v Treeview.
+        """
+        self.context_menu = tk.Menu(self.root, tearoff=0)
+        for item in self.context_menu_list:
+            if item == "separator":
+                self.context_menu.add_separator()
+            else:
+                item_name, command = item
+                self.context_menu.add_command(label=item_name, command=command)       
+
+
+    def hide_context_menu(self):
+        """
+        Metoda pro schování kontextového menu.
+        """
+        self.context_menu.unpost()        
 
 
     def update_frames(self):
@@ -923,7 +935,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.23 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.24 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -947,25 +959,27 @@ class SkladView(View):
         """
         super().__init__(root, controller, current_table = 'sklad')
         self.col_names = col_names
+        self.specialized_menus = {
+            "Skladové položky": [("Přidat skladovou položku", self.add_item),
+                                 ("Upravit skladovou položku", self.edit_selected_item),
+                                 "separator",
+                                 ("Smazat skladovou položku", self.delete_row),],
+            "Příjem/Výdej": [("Příjem zboží", lambda: self.item_movements(action='prijem')),
+                             ("Výdej zboží", lambda: self.item_movements(action='vydej')),],
+            "Varianty": [("Přidat variantu", self.add_variant),],
+            }
+        self.context_menu_list = [
+            ("Upravit skladovou položku", self.edit_selected_item),
+            ("Smazat skladovou položku", self.delete_row),
+            "separator",
+            ("Příjem zboží", lambda: self.item_movements(action='prijem')),
+            ("Výdej zboží", lambda: self.item_movements(action='vydej')),
+            "separator",
+            ("Přidat variantu", self.add_variant),
+            "separator",
+            ("Zrušit", self.hide_context_menu)
+            ]
         self.customize_ui()
-
-
-    def spec_menus(self):
-        """
-        Vytvoření slovníku pro specifická menu dle typu zobrazovaných dat.
-        
-        :return: Slovník parametrů menu k vytvoření specifických menu.
-        """
-        specialized_menus = {"Skladové položky": [("Přidat skladovou položku", self.add_item),
-                                                  ("Upravit skladovou položku", self.edit_selected_item),
-                                                  "separator",
-                                                  ("Smazat skladovou položku", self.delete_row),],
-                             "Příjem/Výdej": [("Příjem zboží", lambda: self.item_movements(action='prijem')),
-                                              ("Výdej zboží", lambda: self.item_movements(action='vydej')),],
-                             "Varianty": [("Přidat variantu", self.add_variant),],
-                             }
-        return specialized_menus
-
 
     def additional_gui_elements(self):
         """
@@ -1030,7 +1044,8 @@ class SkladView(View):
         """
         Implementace funkcionality pro příjem a výdej zboží ve skladu.
         """
-        if self.selected_item is None: return
+        if self.selected_item is None:
+            return
         self.widget_destroy()            
         self.item_frame_show = None
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
@@ -1059,18 +1074,10 @@ class AuditLogView(View):
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
         super().__init__(root, controller, current_table = 'audit_log')
-        self.col_names = col_names   
+        self.col_names = col_names
+        self.specialized_menus = {}
+        self.context_menu_list = []        
         self.customize_ui()
-
-        
-    def spec_menus(self):
-        """
-        Vytvoření slovníku pro specifická menu dle typu zobrazovaných dat.
-        
-        :return: Slovník parametrů menu k vytvoření specifických menu.
-        """
-        specialized_menus = {}
-        return specialized_menus
 
 
     def additional_gui_elements(self):
@@ -1162,12 +1169,6 @@ class AuditLogView(View):
         return col_params
 
 
-    def on_right_click(self, event):
-        """
-        Zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
-        """    
-        pass
-
 class DodavateleView(View):
     """
     Třída DodavateleView pro specifické zobrazení dat z tabulky dodavatele. Dědí od třídy View.
@@ -1182,10 +1183,20 @@ class DodavateleView(View):
         """
         super().__init__(root, controller, current_table = 'dodavatele')
         self.col_names = col_names
-        self.customize_ui()
+        self.specialized_menus = {
+            "Dodavatelé": [
+                ("Přidat dodavatele", self.add_item),
+                ("Upravit dodavatele", self.edit_selected_item),
+                ],
+            }
+        self.context_menu_list = [
+            ("Upravit dodavatele", self.edit_selected_item),
+            "separator",
+            ("Zrušit", self.hide_context_menu)
+            ]        
         self.click_col = 1
         self.sort_reverse = False
-
+        self.customize_ui()
 
     def spec_menus(self):
         """
@@ -1234,23 +1245,19 @@ class ZarizeniView(View):
         """
         super().__init__(root, controller, current_table = 'zarizeni')
         self.col_names = col_names
-        self.customize_ui()
-        self.sort_reverse = False
-
-
-    def spec_menus(self):
-        """
-        Vytvoření slovníku pro specifická menu dle typu zobrazovaných dat.
-        
-        :return: Slovník parametrů menu k vytvoření specifických menu.
-        """
-        specialized_menus = {
+        self.specialized_menus = {
             "Zařízení": [
                 ("Přidat zařízení", self.add_item),
                 ("Upravit zařízení", self.edit_selected_item),
-            ],
-        }
-        return specialized_menus
+                ],
+            }
+        self.context_menu_list = [
+            ("Upravit zařízení", self.edit_selected_item),
+            "separator",
+            ("Zrušit", self.hide_context_menu)
+            ]         
+        self.sort_reverse = False
+        self.customize_ui()
 
 
     def col_parameters(self):
@@ -1285,6 +1292,12 @@ class VariantyView(View):
         """
         super().__init__(root, controller, current_table = 'varianty')
         self.col_names = col_names
+        self.specialized_menus = {"Varianty": [("Upravit variantu", self.edit_selected_item),],}
+        self.context_menu_list = [
+            ("Upravit variantu", self.edit_selected_item),
+            "separator",
+            ("Zrušit", self.hide_context_menu)
+            ] 
         self.customize_ui()
 
 
@@ -1313,16 +1326,6 @@ class VariantyView(View):
         self.item_name_combobox.set("VŠE")
         self.item_name_combobox.bind("<<ComboboxSelected>>",
                                      lambda event, attr='selected_item_name': self.on_combobox_change(event, attr))           
-
-
-    def spec_menus(self):
-        """
-        Vytvoření slovníku pro specifická menu dle typu zobrazovaných dat.
-        
-        :return: Slovník parametrů menu k vytvoření specifických menu.
-        """
-        specialized_menus = {"Varianty": [("Upravit variantu", self.edit_selected_item),],}
-        return specialized_menus
 
 
     def col_parameters(self):
@@ -1361,6 +1364,11 @@ class ItemVariantsView(View):
         """
         super().__init__(root, controller, current_table = 'item_variants')
         self.col_names = col_names
+        self.context_menu_list = [
+            ("Zobraz variantu", self.show_selected_variant),
+            "separator",
+            ("Zrušit", self.hide_context_menu)
+            ] 
         self.customize_ui()
 
 
@@ -1388,15 +1396,7 @@ class ItemVariantsView(View):
         Aktualizuje specifické frame pro dané zobrazení.
         """
         self.tree_frame = tk.Frame(self.left_frames_container, borderwidth=2, relief="groove")
-        self.tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-
-    def update_context_menu(self):
-         """
-         Vytvoří kontextové menu aplikace při kliknutí pravým tlačítkem na položku v Treeview.
-         """
-         self.context_menu = tk.Menu(self.root, tearoff=0)
-         self.context_menu.add_command(label="Zobraz variantu", command=self.show_selected_variant)        
+        self.tree_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)    
 
 
     def col_parameters(self):
@@ -1423,10 +1423,7 @@ class ItemVariantsView(View):
 
     def on_column_click(self, clicked_col):
         """
-        Metoda pro třídění dat v tabulce podle kliknutí na název sloupce.
-        Pro zobrazení variant skladových položek je třídění zrušeno.
-        
-        :param clicked_col: název sloupce, na který bylo kliknuto.
+        Přebití metody on_column_click, zde není potřeba.
         """
         pass
 
