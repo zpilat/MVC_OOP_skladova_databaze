@@ -284,7 +284,7 @@ class View:
                     }
     
 
-    def __init__(self, root, controller, current_table=None):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace GUI a nastavení hlavního okna.
         
@@ -293,6 +293,7 @@ class View:
         """
         self.root = root
         self.controller = controller
+        self.col_names = col_names
         self.current_table = current_table
         self.sort_reverse = True
         self.item_frame_show = None         
@@ -459,13 +460,15 @@ class View:
         self.tree.tag_configure('oddrow', background='#F5F5F5')
         self.tree.tag_configure('low_stock', foreground='#CD5C5C')
 
+        self.tree.bind('<Button-3>', self.on_right_click)        
+
+
 
     def initialize_bindings(self):
         """
         Vytvoření provázání na události.
         """
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
-        self.tree.bind('<Button-3>', self.on_right_click)
 
 
     def update_menu(self, additional_menus):
@@ -579,15 +582,17 @@ class View:
 
     def on_right_click(self, event):
         """
-        Zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
-        """
-        self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k zobrazení.")
-        if self.selected_item is None:
-            return
-        self.tree.see(self.selected_item)
-        x, y, _, _ = self.tree.bbox(self.selected_item)
-        self.context_menu.post(event.x_root, event.y_root)            
-   
+        Vybere položku a zobrazí kontextové menu po kliknutím pravým tlačítkem na položku v Treeview.
+        """        
+        treeview_item_id = self.tree.identify_row(event.y)
+        if treeview_item_id:
+            self.tree.selection_set(treeview_item_id)
+            self.selected_item = treeview_item_id
+            self.id_num = int(self.tree.item(self.selected_item, 'values')[self.id_col])
+            self.context_menu.post(event.x_root, event.y_root)
+        else:
+            self.context_menu.unpost()        
+
 
     def add_data(self, current_data, current_id_num=None):
         """
@@ -618,10 +623,24 @@ class View:
                 self.tree.item(treeview_item_id, tags=(stripe_tag,))
 
         if current_id_num and current_id_num in treeview_item_ids:
-            self.tree.selection_set(treeview_item_ids[current_id_num])
-            self.tree.see(treeview_item_ids[current_id_num])
+            choosen_item = treeview_item_ids[current_id_num]
+            self.mark_first_or_choosen_item(item=choosen_item)
         else:
-            self.mark_first_item() 
+            self.mark_first_or_choosen_item(item=None)
+            
+
+    def mark_first_or_choosen_item(self, item):
+        """
+        Označení první nebo vybrané položky v Treeview po načtení nových dat.
+        """
+        if not item:
+            children = self.tree.get_children()
+            if children:
+                item = children[0]
+            else: return
+        self.tree.selection_set(item)
+        self.tree.see(item)
+        self.tree.focus(item)           
         
 
     def filter_data(self, data):
@@ -724,17 +743,6 @@ class View:
             return (1, value.lower())
 
         
-    def mark_first_item(self):
-        """
-        Označení první položky v Treeview po načtení nových dat.
-        """
-        children = self.tree.get_children()
-        if children:
-            first_item = children[0]
-            self.tree.selection_set(first_item)
-            self.tree.focus(first_item)
-
-
     def widget_destroy(self):
         """
         Metoda na vymazání všechn dat z item_frame.
@@ -846,7 +854,7 @@ class LoginView(View):
     """
     Třída LoginView pro přihlášení uživatele. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
@@ -854,7 +862,7 @@ class LoginView(View):
         :param controller: Instance třídy Controller.
         :param col_names: Seznam názvů sloupců (v tomto případě prázdný, protože se nepoužívá).
         """
-        super().__init__(root, controller)
+        super().__init__(root, controller, col_names, current_table)
         self.additional_gui_elements()
 
     def place_window(self, window_width, window_height):
@@ -935,7 +943,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.24 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.30 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -949,7 +957,7 @@ class SkladView(View):
     """
     Třída SkladView pro specifické zobrazení dat skladu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro sklad.
         
@@ -957,8 +965,7 @@ class SkladView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'sklad')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names, current_table)
         self.specialized_menus = {
             "Skladové položky": [("Přidat skladovou položku", self.add_item),
                                  ("Upravit skladovou položku", self.edit_selected_item),
@@ -1031,7 +1038,7 @@ class SkladView(View):
         if response: 
             success = self.controller.delete_row(self.id_num)
             self.tree.delete(self.selected_item)
-            self.mark_first_item()
+            self.mark_first_or_choosen_item(item=None)
             if success:
                 messagebox.showinfo("Informace", "Vymazána poslední zadaná položka!")
             else:
@@ -1065,7 +1072,7 @@ class AuditLogView(View):
     """
     Třída AuditLogView pro specifické zobrazení dat audit logu. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro audit log.
         
@@ -1073,8 +1080,7 @@ class AuditLogView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'audit_log')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names, current_table)
         self.specialized_menus = {}
         self.context_menu_list = []        
         self.customize_ui()
@@ -1173,7 +1179,7 @@ class DodavateleView(View):
     """
     Třída DodavateleView pro specifické zobrazení dat z tabulky dodavatele. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
@@ -1181,8 +1187,7 @@ class DodavateleView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'dodavatele')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names, current_table)
         self.specialized_menus = {
             "Dodavatelé": [
                 ("Přidat dodavatele", self.add_item),
@@ -1235,7 +1240,7 @@ class ZarizeniView(View):
     """
     Třída ZarizeniView pro specifické zobrazení dat z tabulky zarizeni. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro dodavatele.
         
@@ -1243,8 +1248,7 @@ class ZarizeniView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'zarizeni')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names,current_table)
         self.specialized_menus = {
             "Zařízení": [
                 ("Přidat zařízení", self.add_item),
@@ -1282,7 +1286,7 @@ class VariantyView(View):
     """
     Třída VariantyView pro specifické zobrazení dat z tabulky varianty. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro varianty.
         
@@ -1290,8 +1294,7 @@ class VariantyView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'varianty')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names, current_table)
         self.specialized_menus = {"Varianty": [("Upravit variantu", self.edit_selected_item),],}
         self.context_menu_list = [
             ("Upravit variantu", self.edit_selected_item),
@@ -1354,7 +1357,7 @@ class ItemVariantsView(View):
     """
     Třída VariantyView pro specifické zobrazení dat z tabulky varianty. Dědí od třídy View.
     """
-    def __init__(self, root, controller, col_names):
+    def __init__(self, root, controller, col_names, current_table):
         """
         Inicializace specifického zobrazení pro varianty.
         
@@ -1362,8 +1365,7 @@ class ItemVariantsView(View):
         :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
-        super().__init__(root, controller, current_table = 'item_variants')
-        self.col_names = col_names
+        super().__init__(root, controller, col_names, current_table)
         self.context_menu_list = [
             ("Zobraz variantu", self.show_selected_variant),
             "separator",
@@ -1380,15 +1382,7 @@ class ItemVariantsView(View):
         self.update_frames()
         self.initialize_treeview()
         self.setup_columns(self.col_parameters())
-        self.initialize_bindings()
-        self.update_context_menu()
-
-
-    def initialize_bindings(self):
-        """
-        Vytvoření provázání na události.
-        """
-        self.tree.bind('<Button-3>', self.on_right_click)        
+        self.update_context_menu()    
 
 
     def update_frames(self):
@@ -2255,17 +2249,17 @@ class Controller:
             self.current_table = table
             self.current_view_instance.frame.destroy()
             if table == "sklad":
-                self.current_view_instance = SkladView(self.root, self, col_names)
+                self.current_view_instance = SkladView(self.root, self, col_names, self.current_table)
             elif table == "audit_log":
-                self.current_view_instance = AuditLogView(self.root, self, col_names)
+                self.current_view_instance = AuditLogView(self.root, self, col_names, self.current_table)
             elif table == "dodavatele":
-                self.current_view_instance = DodavateleView(self.root, self, col_names)
+                self.current_view_instance = DodavateleView(self.root, self, col_names, self.current_table)
             elif table == "varianty":
-                self.current_view_instance = VariantyView(self.root, self, col_names)
+                self.current_view_instance = VariantyView(self.root, self, col_names, self.current_table)
             elif table == "zarizeni":
-                self.current_view_instance = ZarizeniView(self.root, self, col_names)
+                self.current_view_instance = ZarizeniView(self.root, self, col_names, self.current_table)
             elif table == "uzivatele":
-                self.current_view_instance = UzivateleView(self.root, self, col_names)                
+                self.current_view_instance = UzivateleView(self.root, self, col_names, self.current_table)                
             else:
                 messagebox.showwarning("Varování", "Nebyla vytvořena nová instance třídy View.")
                 return
@@ -2299,7 +2293,7 @@ class Controller:
         self.current_table = "sklad"
         data = self.model.fetch_sklad_data()
         col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
-        self.current_view_instance = SkladView(self.root, self, col_names)
+        self.current_view_instance = SkladView(self.root, self, col_names, self.current_table)
         self.current_view_instance.add_data(data)
         self.current_user = "pilat"
         self.name_of_user = "Zdeněk Pilát"
@@ -2316,7 +2310,8 @@ class Controller:
 
         
 ##        self.current_table = "login"
-##        self.current_view_instance = LoginView(self.root, self, [])
+##        col_names = []            
+##        self.current_view_instance = LoginView(self.root, self, col_names, self.current_table)
 
 
     def attempt_login(self, username, password_hash):
@@ -2411,7 +2406,8 @@ class Controller:
             return
         if not variants_data:
             return
-        self.varianty_view_instance = ItemVariantsView(frame, self, col_names)
+        current_table = "item_variants"
+        self.varianty_view_instance = ItemVariantsView(frame, self, col_names, current_table)
         self.varianty_view_instance.add_data(variants_data)  
 
 
