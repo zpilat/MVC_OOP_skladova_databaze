@@ -318,6 +318,7 @@ class View:
         self.selected_supplier = "VŠE"
         self.selected_item_name = "VŠE"
         self.start_date = None
+        self.context_menu_list = []         
         self.curr_table_config = View.table_config.get(self.current_table, {})
         if self.current_table == "sklad":
             devices = tuple(self.controller.fetch_dict("zarizeni").keys())
@@ -466,19 +467,17 @@ class View:
 
         self.tree.tag_configure('evenrow', background='#FFFFFF')
         self.tree.tag_configure('oddrow', background='#F5F5F5')
-        self.tree.tag_configure('low_stock', foreground='#CD5C5C')
-
-        self.tree.bind('<Button-3>', self.on_right_click)        
-
+        self.tree.tag_configure('low_stock', foreground='#CD5C5C')    
 
 
     def initialize_bindings(self):
         """
-        Vytvoření provázání na události.
+        Vytvoření společených provázání na události.
         """
-        self.root.bind('<Button-1>', self.global_click)
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
-
+        self.root.bind('<Button-1>', self.global_click)
+        self.tree.bind('<Button-3>', self.on_right_click)
+    
 
     def update_menu(self, additional_menus):
         """
@@ -961,7 +960,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.34 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.35 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1382,11 +1381,6 @@ class ItemVariantsView(View):
         :param col_names: Názvy sloupců pro aktuální zobrazení.
         """
         super().__init__(root, controller, col_names, current_table)
-        self.context_menu_list = [
-            ("Zobraz variantu", self.show_selected_variant),
-            "separator",
-            ("Zrušit", self.hide_context_menu)
-            ] 
         self.customize_ui()
 
 
@@ -1397,8 +1391,15 @@ class ItemVariantsView(View):
         self.initialize_frames()
         self.update_frames()
         self.initialize_treeview()
+        self.initialize_bindings()
         self.setup_columns(self.col_parameters())
-        self.update_context_menu()    
+        
+
+    def initialize_bindings(self):
+        """
+        Vytvoření společených provázání na události.
+        """
+        self.tree.bind('<Double-1>', self.on_item_double_click)
 
 
     def update_frames(self):
@@ -1436,6 +1437,17 @@ class ItemVariantsView(View):
         Přebití metody on_column_click, zde není potřeba.
         """
         pass
+
+
+    def on_item_double_click(self, event):
+        """
+        Vybere dvojklikem variantu v podokně Varianty a zobrazí označenou variantu v tabulce Varianty.
+        """        
+        treeview_item_id = self.tree.identify_row(event.y)
+        if treeview_item_id:
+            self.tree.selection_set(treeview_item_id)
+            self.id_num = int(self.tree.item(treeview_item_id, 'values')[self.id_col])
+            self.show_selected_variant()
 
 
     def show_selected_variant(self):
