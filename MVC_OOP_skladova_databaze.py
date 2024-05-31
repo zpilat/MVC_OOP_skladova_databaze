@@ -331,9 +331,7 @@ class View:
         self.id_col = 0
         self.click_col = 0
         self.id_col_name = self.curr_table_config.get("id_col_name", 'id')
-        self.default_font = tkFont.nametofont("TkDefaultFont")
-        self.custom_font = self.default_font.copy()
-        self.custom_font.config(size=12, weight="bold")
+        self.initialize_fonts()
 
         
     def customize_ui(self):
@@ -351,6 +349,15 @@ class View:
         self.initialize_bindings()
         self.additional_gui_elements()
         self.setup_columns(self.col_parameters())    
+
+
+    def initialize_fonts(self):
+        """
+        Inicializace používaných fontů.
+        """ 
+        self.default_font = tkFont.nametofont("TkDefaultFont")
+        self.custom_font = self.default_font.copy()
+        self.custom_font.config(size=12, weight="bold") 
 
 
     def initialize_menu(self):
@@ -469,6 +476,7 @@ class View:
         """
         Vytvoření provázání na události.
         """
+        self.root.bind('<Button-1>', self.global_click)
         self.tree.bind('<<TreeviewSelect>>', self.show_selected_item)  
 
 
@@ -592,7 +600,16 @@ class View:
             self.id_num = int(self.tree.item(self.selected_item, 'values')[self.id_col])
             self.context_menu.post(event.x_root, event.y_root)
         else:
-            self.context_menu.unpost()        
+            self.hide_context_menu()        
+
+
+    def global_click(self, event):
+        """
+        Pokud je otevřeno kontextové menu a klikne se myší jinam, tak se kontextové menu zavře.
+        """
+        widget = event.widget
+        if widget != self.context_menu:
+            self.hide_context_menu()
 
 
     def add_data(self, current_data, current_id_num=None):
@@ -944,7 +961,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.33 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.34 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1097,8 +1114,6 @@ class AuditLogView(View):
         options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
         self.operation_combobox = ttk.Combobox(self.filter_buttons_frame, values=options, state="readonly")
         self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
-
-        self.operation_combobox.set("VŠE")
         self.operation_combobox.bind("<<ComboboxSelected>>",
                                      lambda event, attr='selected_option': self.on_combobox_change(event, attr))
 
