@@ -297,19 +297,7 @@ class View:
         self.current_table = current_table
         self.sort_reverse = True
         self.item_frame_show = None         
-        self.tab2hum = {'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
-                        'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
-                        'Nazev_dilu': 'Název dílu', 'Mnozstvi_ks_m_l': 'Akt. množství', 'Jednotky':'Jedn.',
-                        'Umisteni': 'Umístění', 'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu',
-                        'Cislo_objednavky': 'Objednávka', 'Jednotkova_cena_EUR': 'EUR/jednotka',
-                        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství',
-                        'Cas_operace': 'Čas operace', 'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
-                        'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
-                        'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
-                        'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele', 'Nazev_varianty': 'Název varianty',
-                        'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
-                        'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
-                        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'}
+        self.tab2hum = CommonResources.tab2hum
         self.suppliers_dict = self.controller.fetch_dict("dodavatele")
         self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
         self.item_names_dict = self.controller.fetch_dict("sklad")
@@ -791,7 +779,7 @@ class View:
         if self.item_frame_show is None:
             self.widget_destroy()
             self.item_frame_show = ItemFrameShow(self.item_frame, self.controller, self.col_names,
-                                                 self.tab2hum, self.current_table, self.check_columns)
+                                                 self.current_table, self.check_columns)
             
         children = self.tree.get_children()
         if not children:
@@ -821,7 +809,7 @@ class View:
         self.widget_destroy()    
         self.item_frame_show = None
         self.controller.show_data_for_editing(self.current_table, self.id_num, self.id_col_name,
-                                                  self.item_frame, self.tab2hum, self.check_columns)
+                                                  self.item_frame, self.check_columns)
 
 
     def add_variant(self, curr_unit_price=None):
@@ -838,7 +826,7 @@ class View:
         varianty_check_columns = varianty_table_config.get("check_columns", [])
         varianty_id_col_name = varianty_table_config.get("id_col_name", "id")
         self.controller.add_variant(self.current_table, self.id_num, self.id_col_name, self.item_frame,
-                                    self.tab2hum, varianty_check_columns, varianty_table, varianty_id_col_name,
+                                    varianty_check_columns, varianty_table, varianty_id_col_name,
                                     curr_unit_price)
       
         
@@ -850,7 +838,7 @@ class View:
         self.item_frame_show = None
         self.id_num = None
         self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
-                                     self.item_frame, self.tab2hum, self.check_columns)
+                                     self.item_frame, self.check_columns)
 
 
     def hash_password(self, password):
@@ -960,7 +948,7 @@ class LoginView(View):
         """
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """        
-        root.title('Skladová databáze HPM HEAT SK - verze 1.35 MVC OOP')
+        root.title('Skladová databáze HPM HEAT SK - verze 1.36 MVC OOP')
         
         if sys.platform.startswith('win'):
             root.state('zoomed')
@@ -1073,7 +1061,7 @@ class SkladView(View):
         self.widget_destroy()            
         self.item_frame_show = None
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
-                                              self.item_frame, self.tab2hum, self.check_columns, action)
+                                              self.item_frame, self.check_columns, action)
 
 
     def show_item_and_variants(self, event=None):
@@ -1472,20 +1460,19 @@ class ItemFrameBase:
         "zarizeni": {"order_of_name": 1, "focus": 'Zarizeni', "name": "ZAŘÍZENÍ",},
         }
 
-    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
+    def __init__(self, master, controller, col_names, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
         
         :param master: Hlavní frame item_frame, kde se zobrazují informace o položkách.
         :param tree: Treeview, ve kterém se vybere zobrazovaná položka.
         :param col_names: Názvy sloupců zobrazované položky.
-        :param dict_tab2hum: Slovník s převodem databázových názvů sloupců na lidské názvy.
         :param current_table: Aktuálně otevřená tabulka databáze.
         """
         self.master = master
         self.controller = controller
         self.col_names = col_names
-        self.tab2hum = tab2hum
+        self.tab2hum = CommonResources.tab2hum
         self.current_table = current_table
         self.check_columns = check_columns
         self.suppliers_dict = self.controller.fetch_dict("dodavatele")
@@ -1748,13 +1735,13 @@ class ItemFrameShow(ItemFrameBase):
     """
     Třída ItemFrameShow se stará o zobrazení vybraných položek.
     """
-    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns):
+    def __init__(self, master, controller, col_names, current_table, check_columns):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns)
 
 
     def clear_item_frame(self):
@@ -1819,13 +1806,13 @@ class ItemFrameEdit(ItemFrameBase):
     """
     Třída ItemFrameEdit se stará o úpravu vybraných položek.
     """
-    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.action = 'edit'
         self.update_frames(action=self.action)
@@ -1873,13 +1860,13 @@ class ItemFrameAdd(ItemFrameBase):
     """
     Třída ItemFrameAdd se stará o tvorbu nových položek.
     """
-    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.action = 'add'
         self.update_frames(action=self.action)        
@@ -1955,13 +1942,13 @@ class ItemFrameMovements(ItemFrameBase):
     """
     Třída ItemFrameMovements se stará o příjem a výdej ve skladě.
     """
-    def __init__(self, master, controller, col_names, tab2hum, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, tab2hum, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns)
         self.current_view_instance = current_view_instance
         
        
@@ -2213,6 +2200,28 @@ class ItemFrameMovements(ItemFrameBase):
         self.values_to_sklad = {col: self.values[col] for col in self.curr_entry_dict["tuple_values_to_save"] if col in self.values}
 
 
+class CommonResources:
+    """
+    Třída uchovávající všechna konfigurační data, slovníky, seznamy, n-tice a metody pro přístup
+    k specifickým podskupinám těchto dat.
+    """
+    tab2hum = {
+        'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
+        'Interne_cislo': 'Č. karty', 'Min_Mnozstvi_ks': 'Minimum', 'Objednano': 'Objednáno?',
+        'Nazev_dilu': 'Název dílu', 'Mnozstvi_ks_m_l': 'Akt. množství', 'Jednotky':'Jedn.',
+        'Umisteni': 'Umístění', 'Dodavatel': 'Dodavatel', 'Datum_nakupu': 'Datum nákupu',
+        'Cislo_objednavky': 'Objednávka', 'Jednotkova_cena_EUR': 'EUR/jednotka',
+        'Celkova_cena_EUR': 'Celkem EUR', 'Poznamka': 'Poznámka', 'Zmena_mnozstvi': 'Změna množství',
+        'Cas_operace': 'Čas operace', 'Operaci_provedl': 'Operaci provedl', 'Typ_operace': 'Typ operace',
+        'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
+        'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
+        'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele', 'Nazev_varianty': 'Název varianty',
+        'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
+        'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
+        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'
+        }
+    
+
 
 class Controller:
     """
@@ -2301,7 +2310,7 @@ class Controller:
             self.current_view_instance.add_data(data)
 
 
-    def show_data_for_editing(self, table, id_num, id_col_name, master, tab2hum, check_columns):
+    def show_data_for_editing(self, table, id_num, id_col_name, master, check_columns):
         """
         Získání dat a zobrazení vybrané položky pro úpravu. Vytvoří se nová instance ItemFrameEdit.
         
@@ -2311,7 +2320,7 @@ class Controller:
         item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
         col_names = self.model.fetch_col_names(table)
         
-        self.current_item_instance = ItemFrameEdit(master, self, col_names, tab2hum, table,
+        self.current_item_instance = ItemFrameEdit(master, self, col_names, table,
                                                        check_columns, self.current_view_instance)
         self.current_item_instance.open_edit_window(item_values)
 
@@ -2360,7 +2369,7 @@ class Controller:
             self.current_view_instance.handle_failed_login()
 
 
-    def show_data_for_movements(self, table, id_num, id_col_name, master, tab2hum, check_columns, action):
+    def show_data_for_movements(self, table, id_num, id_col_name, master, check_columns, action):
         """
         Získání dat a zobrazení vybrané položky pro skladový pohyb. Vytvoří se nová instance ItemFrameMovements.
         
@@ -2371,12 +2380,12 @@ class Controller:
         col_names = self.model.fetch_col_names(table)
         audit_log_col_names = self.model.fetch_col_names("audit_log")
 
-        self.current_item_instance = ItemFrameMovements(master, self, col_names, tab2hum, table,
+        self.current_item_instance = ItemFrameMovements(master, self, col_names, table,
                                                         check_columns, self.current_view_instance)
         self.current_item_instance.enter_item_movements(action, item_values, audit_log_col_names)
 
 
-    def add_item(self, table, id_num, id_col_name, master, tab2hum, check_columns):
+    def add_item(self, table, id_num, id_col_name, master, check_columns):
         """
         Získání dat a zobrazení vybrané položky pro úpravu. Pokud se mění tabulka k zobrazení,
         vytvoří se nová instance podtřídy ItemFrameBase, pokud zůstává tabulka stejná,
@@ -2389,12 +2398,12 @@ class Controller:
         new_id = str(self.model.get_max_id(table, id_col_name) + 1)
         col_names = self.model.fetch_col_names(table)
         
-        self.current_item_instance = ItemFrameAdd(master, self, col_names, tab2hum, table,
+        self.current_item_instance = ItemFrameAdd(master, self, col_names, table,
                                                   check_columns, self.current_view_instance)
         self.current_item_instance.add_item(new_id, new_interne_cislo)
 
 
-    def add_variant(self, table, id_num, id_col_name, master, tab2hum, varianty_check_columns,
+    def add_variant(self, table, id_num, id_col_name, master, varianty_check_columns,
                     varianty_table, varianty_id_col_name, curr_unit_price):
         """
         Získání dat a zobrazení vybrané položky pro vytvoření nové varianty.
@@ -2412,7 +2421,7 @@ class Controller:
         varianty_item_values[1] = sklad_values_dict['Evidencni_cislo']
         varianty_item_values[5] = curr_unit_price if curr_unit_price else ""
                                          
-        self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, tab2hum, varianty_table,
+        self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, varianty_table,
                                                    varianty_check_columns, self.current_view_instance)
         self.current_item_instance.add_variant(varianty_item_values)
 
@@ -2537,9 +2546,12 @@ class Controller:
             col_ids = tree["columns"]
             col_names = [tree.heading(col)["text"] for col in col_ids]
             data = [tree.item(item)["values"] for item in tree.get_children()]
-        else:    
+        elif table:    
             col_names = self.model.fetch_col_names(table)
             data = self.model.fetch_data(table)
+        else:
+            messagebox.showwarning("Upozornění", "Nebyla vybrána tabulka ani tree pro export.")
+            return
 
         try:
             with open(csv_file_name, mode='w', newline='', encoding='utf-8') as csv_file:
@@ -2547,7 +2559,7 @@ class Controller:
                 csv_writer.writerow(col_names)
                 for row in data:
                     csv_writer.writerow(row)
-            messagebox.showinf("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
+            messagebox.showinfo("Export dokončen", f"Data byla úspěšně exportována do souboru '{csv_file_name}'.")
         except Exception as e:
             messagebox.showerror("Chyba při exportu", f"Nastala chyba při exportu dat: {e}")
 
