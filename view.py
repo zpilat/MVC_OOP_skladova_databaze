@@ -629,7 +629,7 @@ class View:
         self.widget_destroy()
         self.item_frame_show = None
         varianty_table = "varianty"
-        varianty_table_config = View.table_config.get(varianty_table, {})
+        varianty_table_config = CommonResources.view_table_config.get(varianty_table, {})
         varianty_check_columns = varianty_table_config.get("check_columns", [])
         varianty_id_col_name = varianty_table_config.get("id_col_name", "id")
         self.controller.add_variant(self.current_table, self.id_num, self.id_col_name, self.item_frame,

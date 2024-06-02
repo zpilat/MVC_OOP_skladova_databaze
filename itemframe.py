@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkFont
+from datetime import datetime, timedelta
 
 from commonresources import CommonResources
 
@@ -30,9 +31,110 @@ class ItemFrameBase:
         self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
         self.curr_table_config = CommonResources.item_frame_table_config[self.current_table]
         self.special_columns = ('Ucetnictvi', 'Kriticky_dil', 'Pod_minimem')
+        self.new_id = None
+        self.new_interne_cislo = None
+        self.actual_date = datetime.now().strftime("%Y-%m-%d")
 
         self.initialize_fonts()
         self.initialize_frames()
+
+
+    def initialize_current_entry_dict(self):
+        """
+        Slovníky pro specifická menu a kontextové menu pro danou tabulku.
+        """ 
+        entry_dict = {
+            "sklad": {
+                "edit": {
+                    "read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
+                                  'Datum_nakupu', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
+                    "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu',),
+                    "not_neg_integer": ('Interne_cislo', 'Min_Mnozstvi_ks',),
+                    },
+                "add": {
+                    "read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
+                                  'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky', 'Jednotky', 'Dodavatel',),
+                    "pack_forget": ('Objednano', 'Mnozstvi_ks_m_l', 'Datum_nakupu', 'Cislo_objednavky',
+                                    'Jednotkova_cena_EUR', 'Celkova_cena_EUR',),
+                    "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
+                               'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0',},
+                    "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu', 'Jednotky',),
+                    "not_neg_integer":('Min_Mnozstvi_ks',),
+                    },
+                "prijem": {
+                    "grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni',
+                                    'Datum_vydeje', 'Cas_operace', 'id'),
+                    "mandatory": ('Zmena_mnozstvi', 'Umisteni', 'Dodavatel', 'Cislo_objednavky'),
+                    "date": ('Datum_nakupu',),
+                    "pos_real": ('Jednotkova_cena_EUR',),
+                    "pos_integer":('Zmena_mnozstvi',),
+                    "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.name_of_user,
+                                     'Datum_nakupu': self.actual_date, 'Datum_vydeje': "",},
+                    "tuple_values_to_save": ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
+                                             'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka'),
+                    "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
+                                  'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni', 'Dodavatel'),
+                    "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
+                                          'Umisteni', 'Jednotkova_cena_EUR', 'Objednano', 'Poznamka', 'Nazev_dilu'),
+                    },
+                "vydej": {
+                    "grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
+                                    'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
+                    "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni', 'Umisteni'),
+                    "date":('Datum_vydeje',),
+                    "pos_integer":('Zmena_mnozstvi',),
+                    "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.name_of_user,
+                                     'Datum_nakupu': "", 'Datum_vydeje': self.actual_date,},
+                    "tuple_values_to_save": ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR'),
+                    "read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
+                                  'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni', 'Dodavatel'),
+                    "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky', 'Mnozstvi_ks_m_l',
+                                          'Umisteni', 'Jednotkova_cena_EUR', 'Objednano', 'Poznamka', 'Nazev_dilu'),
+                    },
+                },
+            "dodavatele": {
+                "edit": {
+                    "read_only": ('id', 'Dodavatel'),
+                    },
+                "add": {
+                    "read_only": ('id',),
+                    "insert": {'id': self.new_id},
+                    "mandatory": ('Dodavatel',),
+                    },
+                },
+            "zarizeni": {
+                "edit": {
+                    "read_only": ('id', 'Zarizeni'),
+                    "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
+                    },
+                "add": {
+                    "read_only": ('id',),
+                    "insert": {'id': self.new_id},
+                    "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
+                    },
+                },
+            "varianty": {
+                "edit": {
+                    "read_only": ('id', 'id_sklad', 'id_dodavatele',),
+                    "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
+                    "not_neg_real":('Jednotkova_cena_EUR',),
+                    "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
+                    },
+                "add": {
+                    "read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
+                    "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel', 'Jednotkova_cena_EUR',),
+                    "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
+                    "not_neg_real":('Jednotkova_cena_EUR',),
+                    "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
+                    "calculate": 'id_dodavatele',
+                    },
+                },
+            }
+
+        self.title_action_dict = {"show": 'ZOBRAZENÍ ', "edit": 'ÚPRAVA ', "add": 'VYTVOŘENÍ ',
+                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ '}
+            
+        self.current_table_entry_dict = entry_dict.get(self.current_table, {})
 
 
     def initialize_fonts(self):
@@ -290,7 +392,7 @@ class ItemFrameShow(ItemFrameBase):
         :param: Inicializovány v rodičovské třídě.
         """
         super().__init__(master, controller, col_names, current_table, check_columns)
-
+        self.action = 'show'
 
     def clear_item_frame(self):
         """
@@ -306,9 +408,9 @@ class ItemFrameShow(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """        
-        self.entry_dict = {}
-        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
-        self.title = "ZOBRAZENÍ " + str(self.curr_table_config["name"])
+        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
+        title_action = self.title_action_dict[self.action]
+        self.title = title_action + str(self.curr_table_config["name"])
                            
 
     def show_selected_item_details(self, item_values):
@@ -320,6 +422,7 @@ class ItemFrameShow(ItemFrameBase):
         """
         self.item_values = item_values
         self.clear_item_frame()
+        self.initialize_current_entry_dict()
         self.init_curr_dict()
         self.initialize_title()
         self.update_frames(action=None)
@@ -363,31 +466,16 @@ class ItemFrameEdit(ItemFrameBase):
         super().__init__(master, controller, col_names, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.action = 'edit'
-        self.update_frames(action=self.action)
+        self.update_frames(action=self.action)      
         
        
     def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Mnozstvi_ks_m_l', 'Jednotky', 'Dodavatel',
-                                                   'Datum_nakupu', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR'),
-                                     "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu',),
-                                     "not_neg_integer": ('Interne_cislo', 'Min_Mnozstvi_ks',),
-                                     },
-                           "dodavatele": {"read_only": ('id', 'Dodavatel'),
-                                          },
-                           "zarizeni": {"read_only": ('id', 'Zarizeni'),
-                                        "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
-                                        },                           
-                           "varianty": {"read_only": ('id', 'id_sklad', 'id_dodavatele',),
-                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty',),
-                                        "not_neg_real":('Jednotkova_cena_EUR',),
-                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
-                                        }
-                           }
-        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
-        self.title = "ÚPRAVA " + str(self.curr_table_config["name"])        
+        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
+        title_action = self.title_action_dict[self.action]
+        self.title = title_action + str(self.curr_table_config["name"])        
 
 
     def open_edit_window(self, item_values):
@@ -397,6 +485,7 @@ class ItemFrameEdit(ItemFrameBase):
         :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
         """
         self.item_values = item_values
+        self.initialize_current_entry_dict()         
         self.init_curr_dict()        
         self.initialize_title()       
         self.id_num = self.item_values[0]
@@ -417,41 +506,16 @@ class ItemFrameAdd(ItemFrameBase):
         super().__init__(master, controller, col_names, current_table, check_columns)
         self.current_view_instance = current_view_instance
         self.action = 'add'
-        self.update_frames(action=self.action)        
+        self.update_frames(action=self.action)
 
 
     def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.entry_dict = {"sklad": {"read_only": ('Evidencni_cislo', 'Interne_cislo', 'Mnozstvi_ks_m_l', 'Jednotkova_cena_EUR',
-                                                   'Celkova_cena_EUR', 'Objednano', 'Cislo_objednavky', 'Jednotky', 'Dodavatel',),
-                                     "pack_forget": ('Objednano', 'Mnozstvi_ks_m_l', 'Datum_nakupu', 'Cislo_objednavky',
-                                                     'Jednotkova_cena_EUR', 'Celkova_cena_EUR',),
-                                     "insert": {'Evidencni_cislo': self.new_id, 'Interne_cislo': self.new_interne_cislo, 'Mnozstvi_ks_m_l': '0',
-                                                'Jednotkova_cena_EUR': '0.0', 'Celkova_cena_EUR': '0.0',},
-                                     "mandatory": ('Min_Mnozstvi_ks', 'Nazev_dilu', 'Jednotky',),
-                                     "not_neg_integer":('Min_Mnozstvi_ks',),
-                                     },                                 
-                           "dodavatele": {"read_only": ('id',),
-                                          "insert": {'id': self.new_id},
-                                          "mandatory": ('Dodavatel',),
-                                          },
-                           "zarizeni": {"read_only": ('id',),
-                                        "insert": {'id': self.new_id},
-                                        "mandatory": ('Zarizeni', 'Nazev_zarizeni', 'Umisteni', 'Typ_zarizeni',),
-                                        },                            
-                           "varianty": {"read_only": ('id','Nazev_dilu', 'id_sklad', 'Dodavatel', 'id_dodavatele',),
-                                        "mandatory": ('Nazev_varianty', 'Cislo_varianty', 'Dodavatel', 'Jednotkova_cena_EUR',),
-                                        "insert": {'Dodaci_lhuta': 0, 'Min_obj_mnozstvi':0,},
-                                        "not_neg_real":('Jednotkova_cena_EUR',),
-                                        "not_neg_integer": ('Dodaci_lhuta', 'Min_obj_mnozstvi'),
-                                        "calculate": 'id_dodavatele',
-                                        },
-                           }
-        self.curr_entry_dict = self.entry_dict.get(self.current_table, {})
-        self.title = "VYTVOŘENÍ " + str(self.curr_table_config["name"])        
+        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
+        title_action = self.title_action_dict[self.action]
+        self.title = title_action + str(self.curr_table_config["name"])        
 
 
     def add_item(self, new_id, new_interne_cislo):
@@ -461,6 +525,7 @@ class ItemFrameAdd(ItemFrameBase):
         self.item_values = None
         self.new_id = new_id
         self.new_interne_cislo = new_interne_cislo
+        self.initialize_current_entry_dict()        
         self.init_curr_dict()
         self.initialize_title(add_name_label=False)
         self.show_for_editing()
@@ -475,12 +540,12 @@ class ItemFrameAdd(ItemFrameBase):
         """
         self.entries = {}
         self.new_id = item_values[0]
-        self.new_interne_cislo = None
         self.item_values = item_values
         dodavatel_value = self.item_values[-1]
         if dodavatel_value:
             id_dodavatele_value = self.suppliers_dict[dodavatel_value]
             self.item_values[2] = id_dodavatele_value
+        self.initialize_current_entry_dict()              
         self.init_curr_dict()        
         self.initialize_title(add_name_label=False)       
         self.show_for_editing()
@@ -504,41 +569,9 @@ class ItemFrameMovements(ItemFrameBase):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
         """
-        self.actual_date = datetime.now().strftime("%Y-%m-%d")
-        self.action_dict = {
-            "sklad": {"prijem": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Pouzite_zarizeni',
-                                                 'Datum_vydeje', 'Cas_operace', 'id'),
-                                 "mandatory": ('Zmena_mnozstvi', 'Umisteni', 'Dodavatel', 'Cislo_objednavky'),
-                                 "date":('Datum_nakupu',),
-                                 "pos_real": ('Jednotkova_cena_EUR',),
-                                 "pos_integer":('Zmena_mnozstvi',),
-                                 "actual_value": {'Typ_operace': "PŘÍJEM", 'Operaci_provedl': self.name_of_user,
-                                                  'Datum_nakupu': self.actual_date, 'Datum_vydeje': "",},
-                                 "tuple_values_to_save": ('Objednano', 'Mnozstvi_ks_m_l', 'Umisteni', 'Dodavatel', 'Datum_nakupu',
-                                                          'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Celkova_cena_EUR', 'Poznamka'),
-                                 },
-                      "vydej": {"grid_forget": ('Nazev_dilu', 'Celkova_cena_EUR', 'Objednano', 'Dodavatel', 'Cas_operace',
-                                                'Cislo_objednavky', 'Jednotkova_cena_EUR', 'Datum_nakupu', 'id'),
-                                "mandatory": ('Zmena_mnozstvi', 'Pouzite_zarizeni', 'Umisteni'),
-                                "date":('Datum_vydeje',),
-                                "pos_integer":('Zmena_mnozstvi',),
-                                "actual_value": {'Typ_operace': "VÝDEJ", 'Operaci_provedl': self.name_of_user,
-                                                  'Datum_nakupu': "", 'Datum_vydeje': self.actual_date,},
-                                "tuple_values_to_save": ('Mnozstvi_ks_m_l', 'Umisteni', 'Poznamka', 'Celkova_cena_EUR'),
-                                },
-                      },
-            }              
-        self.entry_dict = {"sklad": {"read_only": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                                   'Mnozstvi_ks_m_l', 'Typ_operace', 'Operaci_provedl', 'Pouzite_zarizeni',
-                                                   'Dodavatel'),
-                                     "insert_item_value": ('Ucetnictvi', 'Evidencni_cislo', 'Interne_cislo', 'Jednotky',
-                                                           'Mnozstvi_ks_m_l', 'Umisteni', 'Jednotkova_cena_EUR', 'Objednano',
-                                                           'Poznamka', 'Nazev_dilu'),
-                                     },
-                           }
-        self.title_action = self.action_dict[self.current_table][self.action]["actual_value"]['Typ_operace']        
-        self.title = f"{self.title_action} ZBOŽÍ"       
-        self.curr_entry_dict = self.entry_dict[self.current_table] | self.action_dict[self.current_table][self.action]
+        title_action = self.title_action_dict[self.action]    
+        self.title = f"{title_action} ZBOŽÍ"       
+        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
         self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())
 
 
@@ -553,6 +586,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.action = action
         self.item_values = item_values
         self.audit_log_col_names = audit_log_col_names
+        self.initialize_current_entry_dict()          
         self.init_curr_dict()
         self.initialize_title()
         self.update_frames(action=self.action)         
