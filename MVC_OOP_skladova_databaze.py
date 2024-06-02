@@ -24,6 +24,7 @@ class Controller:
         self.current_view_instance = None
         self.varianty_view_instance = None
         self.current_user = None
+        self.name_of_user = None        
         self.current_role = None
 
 
@@ -114,13 +115,13 @@ class Controller:
         Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
         """
         # při programování pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
+        self.current_user = "pilat"
+        self.name_of_user = "Zdeněk Pilát"
         self.current_table = "sklad"
         data = self.model.fetch_sklad_data()
         col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
         self.current_view_instance = SkladView(self.root, self, col_names, self.current_table)
         self.current_view_instance.add_data(data)
-        self.current_user = "pilat"
-        self.name_of_user = "Zdeněk Pilát"
         if sys.platform.startswith('win'):
             self.root.state('zoomed')
         else:
