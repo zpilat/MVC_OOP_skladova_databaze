@@ -129,6 +129,17 @@ class ItemFrameBase:
                     "calculate": 'id_dodavatele',
                     },
                 },
+            "uzivatele": {
+                "edit": {
+                    "read_only": ('id', 'username'),
+                    "mandatory": ('password_hash', 'name', 'role',),
+                    },
+                "add": {
+                    "read_only": ('id',),
+                    "insert": {'id': self.new_id},
+                    "mandatory": ('username', 'password_hash', 'name', 'role',),
+                    },
+                },
             }
 
         self.title_action_dict = {"show": 'ZOBRAZENÍ ', "edit": 'ÚPRAVA ', "add": 'VYTVOŘENÍ ',

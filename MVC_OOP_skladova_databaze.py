@@ -2,6 +2,7 @@ import csv
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import os
+import sqlite3
 
 from model import Model
 from view import *
@@ -114,9 +115,10 @@ class Controller:
         """
         Metoda pro spuštění přihlašování uživatele. Vytvoří se nová instance LoginView.
         """
-        # při programování pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
+        # při programov;ání pro přeskočení přihlašování, potom vyměnit za okomentovaný kód
         self.current_user = "pilat"
         self.name_of_user = "Zdeněk Pilát"
+        self.current_role = "admin"
         self.current_table = "sklad"
         data = self.model.fetch_sklad_data()
         col_names = list(self.model.fetch_col_names(self.current_table)) + ["Pod_minimem"]
@@ -265,7 +267,7 @@ class Controller:
         try:
             self.model.insert_item(table, columns, values_to_insert)
         except sqlite3.IntegrityError:
-            messagebox.showwarning("Varování", "Položka se zadaným ID číslem už v databázi existuje.")
+            messagebox.showwarning("Varování", "Položka se zadaným ID číslem, uživatelem nebo jménem už v databázi existuje.")
             return False
         return True     
 
@@ -351,7 +353,7 @@ class Controller:
             
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title('Přihlášení - Skladová databáze HPM HEAT SK')
+    root.title('Skladová databáze HPM HEAT SK')
     db_path = '.'                                                 #Z:\Údržba\Sklad\Skladová databáze'
     db_file = os.path.join( db_path , 'skladova_databaze_EC0.db') # Změňte na aktuální název souboru DB včetně cesty    
     controller = Controller(root, db_file)

@@ -5,7 +5,7 @@ class CommonResources:
     Třída uchovávající všechna konfigurační data, slovníky, seznamy, n-tice a metody pro přístup
     k specifickým podskupinám těchto dat.
     """
-    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.40 MVC OOP'
+    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.41 MVC OOP'
     
     tab2hum = {
         'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -18,18 +18,22 @@ class CommonResources:
         'Datum_vydeje': 'Datum výdeje', 'Pouzite_zarizeni': 'Použité zařízení', 'id': 'ID',
         'Kontakt': 'Kontaktní osoba', 'E-mail': 'E-mail', 'Telefon': 'Telefon',
         'id_sklad': 'Evidenční číslo', 'id_dodavatele': 'ID dodavatele', 'Nazev_varianty': 'Název varianty',
-        'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů',
+        'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů', 'name': 'Jméno',
         'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
-        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem'
+        'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem',
+        'username': 'Uživatel', 'role': 'Oprávnění', 'password_hash': 'Heslo',
         }
 
-    common_radiobutton_menus = {"Zobrazení":
-                                [("Sklad", 'sklad'),
-                                 ("Varianty", 'varianty'),
-                                 ("Auditovací log", 'audit_log'),
-                                 ("Dodavatelé", 'dodavatele'),
-                                 ("Zařízení", 'zarizeni'),],
-                                }
+    common_radiobutton_menus = {
+        "Zobrazení":[
+            ("Sklad", 'sklad'),
+            ("Varianty", 'varianty'),
+            ("Auditovací log", 'audit_log'),
+            ("Dodavatelé", 'dodavatele'),
+            ("Zařízení", 'zarizeni'),
+            ("Uživatelé", 'uzivatele'),
+            ],
+        }
 
     view_table_config = {
         "sklad": {"check_columns": ('Pod_minimem', 'Ucetnictvi', 'Kriticky_dil',),
@@ -106,6 +110,10 @@ class CommonResources:
         "zarizeni": {"order_of_name": 1,
                      "focus": 'Zarizeni',
                      "name": "ZAŘÍZENÍ",
+                     },
+        "uzivatele": {"order_of_name": 1,
+                     "focus": 'name',
+                     "name": "UŽIVATELE",
                      },
         }    
 

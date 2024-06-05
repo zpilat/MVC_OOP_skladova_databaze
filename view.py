@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, simpledialog
+from tkinter import ttk, filedialog, messagebox, simpledialog, PhotoImage
 import tkinter.font as tkFont
 from datetime import datetime, timedelta
 import re
@@ -26,7 +26,8 @@ class View:
         self.col_names = col_names
         self.current_table = current_table
         self.current_user = self.controller.current_user
-        self.name_of_user = self.controller.name_of_user        
+        self.name_of_user = self.controller.name_of_user
+        self.current_role = self.controller.current_role
         self.sort_reverse = True
         self.item_frame_show = None         
         self.tab2hum = CommonResources.tab2hum
@@ -66,7 +67,7 @@ class View:
         self.initialize_menu()
         self.initialize_frames()
         self.initialize_searching()
-        self.update_menu(self.specialized_menu_list)
+        self.update_menu(self.specialized_menu_list)           
         self.update_context_menu()
         self.update_frames()
         self.initialize_logged_user_label()
@@ -136,6 +137,17 @@ class View:
                     ("Zrušit", self.hide_context_menu)
                     ],
                 },
+            "uzivatele": {
+                "specialized_menu_dict": {
+                    "Uživatelé": [("Přidat uživatele", self.add_item),
+                                 ("Upravit uživatele", self.edit_selected_item),],
+                    },
+                "context_menu_list": [
+                    ("Upravit uživatele", self.edit_selected_item),
+                    "separator",
+                    ("Zrušit", self.hide_context_menu)
+                    ],
+                },            
             }
         current_menus_dict = menus_dict.get(self.current_table, {})
 
@@ -307,8 +319,10 @@ class View:
             new_menu = tk.Menu(self.menu_bar, tearoff=0)
             for item in menu_items:
                 item_name, table = item
+                if table=="uzivatele" and self.current_role != "admin":
+                    continue
                 new_menu.add_radiobutton(label=item_name, variable=str_variable,
-                                         value=table, command=self.on_view_change)
+                                         value=table, command=self.on_view_change)                   
             self.menu_bar.add_cascade(label=menu_name, menu=new_menu)
 
 
@@ -717,34 +731,46 @@ class LoginView(View):
         self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
 
 
+
     def additional_gui_elements(self):
         """
         Vytvoření a umístění prvků GUI pro přihlašovací formulář.
         """
-        self.place_window(410, 340)
-        
-        self.frame = tk.Frame(self.root, borderwidth=2, relief="groove")
-        self.frame.pack(fill=tk.BOTH, expand=True)
-        
-        login_label = tk.Label(self.frame , text="Přihlášení uživatele", font=("TkDefaultFont", 20))
-        username_label = tk.Label(self.frame , text="Uživatelské jméno", font=("TkDefaultFont", 14))
-        self.username_entry = tk.Entry(self.frame , font=("TkDefaultFont", 14))
-        self.password_entry = tk.Entry(self.frame , show="*", font=("TkDefaultFont", 14))
-        password_label = tk.Label(self.frame , text="Heslo", font=("TkDefaultFont", 14))
-        login_button = tk.Button(self.frame , text="Login", bg='#333333', fg="#FFFFFF", borderwidth=2,
-                                 relief="groove", font=("TkDefaultFont", 16), command=self.attempt_login)
+        self.place_window(500, 300)
 
-        login_label.grid(row=0, column=0, columnspan=2, sticky="news", padx=5, pady=40)
-        username_label.grid(row=1, column=0, padx=5)
-        self.username_entry.grid(row=1, column=1, padx=5, pady=20)
-        password_label.grid(row=2, column=0, padx=5)
-        self.password_entry.grid(row=2, column=1, padx=5, pady=20)
-        login_button.grid(row=3, column=0, columnspan=2, pady=30)
+        self.frame = tk.Frame(self.root, borderwidth=2, relief="groove", bg='#F0F0F0')
+        self.frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        logo = tk.PhotoImage(file="hpm_heat_sk.png")
+        logo_label = tk.Label(self.frame, image=logo, bg='#F0F0F0')
+        logo_label.image = logo
+        logo_label.grid(row=0, column=0, columnspan=2)
+
+        login_label = tk.Label(self.frame, text="Přihlášení uživatele", font=("TkDefaultFont", 20), bg='#F0F0F0')
+        username_label = tk.Label(self.frame, text="Uživatelské jméno", font=("TkDefaultFont", 14), bg='#F0F0F0')
+        self.username_entry = tk.Entry(self.frame, font=("TkDefaultFont", 14), borderwidth=1, relief="solid")
+        self.password_entry = tk.Entry(self.frame, show="*", font=("TkDefaultFont", 14), borderwidth=1, relief="solid")
+        password_label = tk.Label(self.frame, text="Heslo", font=("TkDefaultFont", 14), bg='#F0F0F0')
+        login_button = tk.Button(self.frame, text="Login", bg='#333333', fg="#FFFFFF", borderwidth=0,
+                                 relief="flat", font=("TkDefaultFont", 16), command=self.attempt_login)
+
+        login_label.grid(row=1, column=0, columnspan=2, sticky="news", padx=5, pady=(20, 10))
+        username_label.grid(row=2, column=0, padx=5, sticky="w")
+        self.username_entry.grid(row=2, column=1, padx=(0,5), pady=(10, 20), sticky="ew")
+        password_label.grid(row=3, column=0, padx=5, sticky="w")
+        self.password_entry.grid(row=3, column=1, padx=(0,5), pady=(10, 20), sticky="ew")
+        login_button.grid(row=4, column=0, columnspan=2, pady=(10,20), sticky="ew")
 
         self.password_entry.bind('<Return>', lambda _: self.attempt_login())
-        self.password_entry.bind('<KP_Enter>', lambda _: self.attempt_login())               
+        self.password_entry.bind('<KP_Enter>', lambda _: self.attempt_login())
 
         self.username_entry.focus()
+
+        for widget in self.frame.winfo_children():
+            widget.grid_configure(padx=10, pady=5)
+
+        self.frame.place(relx=0.5, rely=0.5, anchor="center")
+
 
 
     def attempt_login(self):
@@ -782,10 +808,10 @@ class LoginView(View):
         Metoda pro start tabulky sklad a vytvoření hlavního okna po úspěšném přihlášení.
         """
         title = CommonResources.main_window_title
-        root.title(title)
+        self.root.title(title)
         
         if sys.platform.startswith('win'):
-            root.state('zoomed')
+            self.root.state('zoomed')
         else:
             self.place_window(1920, 1080)
         
@@ -866,12 +892,14 @@ class AuditLogView(View):
 
         options = ["VŠE", "PŘÍJEM", "VÝDEJ"]
         self.operation_combobox = ttk.Combobox(self.filter_buttons_frame, values=options, state="readonly")
-        self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5) 
+        self.operation_combobox.pack(side=tk.LEFT, padx=5, pady=5)
+        self.operation_combobox.set("VŠE")        
         self.operation_combobox.bind("<<ComboboxSelected>>",
                                      lambda event, attr='selected_option': self.on_combobox_change(event, attr))
 
         self.month_entry_label = tk.Label(self.filter_buttons_frame, text="Výběr měsíce:")
         self.month_entry_label.pack(side=tk.LEFT, padx=5, pady=5)
+        
 
         self.generate_months_list()
         self.month_entry_combobox = ttk.Combobox(self.filter_buttons_frame, width=12,
@@ -1060,4 +1088,18 @@ class ItemVariantsView(View):
             table="varianty"
             self.controller.show_data(table, self.id_num) 
            
-
+class UzivateleView(View):
+    """
+    Třída UzivateleView pro specifické zobrazení dat z tabulky uzivatele. Dědí od třídy View.
+    """
+    def __init__(self, root, controller, col_names, current_table):
+        """
+        Inicializace specifického zobrazení pro dodavatele.
+        
+        :param root: Hlavní okno aplikace.
+        :param controller: Instance třídy Controller pro komunikaci mezi modelem a pohledem.
+        :param col_names: Názvy sloupců pro aktuální zobrazení.
+        """
+        super().__init__(root, controller, col_names,current_table)     
+        self.sort_reverse = False
+        self.customize_ui()
