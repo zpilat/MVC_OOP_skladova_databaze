@@ -851,8 +851,9 @@ class SkladView(View):
         """
         Implementace funkcionality pro příjem a výdej zboží ve skladu.
         """
+        self.selected_item = self.select_item()
         if self.selected_item is None:
-            return
+            return 
         self.widget_destroy()            
         self.item_frame_show = None
         self.controller.show_data_for_movements(self.current_table, self.id_num, self.id_col_name,
