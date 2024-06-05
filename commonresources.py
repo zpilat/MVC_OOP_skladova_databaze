@@ -5,7 +5,7 @@ class CommonResources:
     Třída uchovávající všechna konfigurační data, slovníky, seznamy, n-tice a metody pro přístup
     k specifickým podskupinám těchto dat.
     """
-    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.41 MVC OOP'
+    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.42 MVC OOP'
     
     tab2hum = {
         'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -21,7 +21,7 @@ class CommonResources:
         'Cislo_varianty': 'Číslo varianty', 'Dodaci_lhuta': 'Dod. lhůta dnů', 'name': 'Jméno',
         'Min_obj_mnozstvi': 'Min. obj. množ.', 'Zarizeni': 'Zařízení', 'Nazev_zarizeni': 'Název zařízení',
         'Umisteni': 'Umístění', 'Typ_zarizeni': 'Typ zařízení', 'Pod_minimem': 'Pod minimem',
-        'username': 'Uživatel', 'role': 'Oprávnění', 'password_hash': 'Heslo',
+        'username': 'Uživatel', 'role': 'Oprávnění', 'password_hash': 'Heslo', 'Jazyk': 'Jazyk',
         }
 
     common_radiobutton_menus = {

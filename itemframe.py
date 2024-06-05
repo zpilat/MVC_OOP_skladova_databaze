@@ -9,7 +9,7 @@ class ItemFrameBase:
     """
     Třída ItemFrameBase je rodičovská třída pro práci s vybranými položkami.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action):
         """
         Inicializace prvků v item_frame.
         
@@ -24,6 +24,7 @@ class ItemFrameBase:
         self.tab2hum = CommonResources.tab2hum
         self.current_table = current_table
         self.check_columns = check_columns
+        self.action = action
         self.suppliers_dict = self.controller.fetch_dict("dodavatele")
         self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
         self.current_user = self.controller.current_user
@@ -95,11 +96,12 @@ class ItemFrameBase:
             "dodavatele": {
                 "edit": {
                     "read_only": ('id', 'Dodavatel'),
+                    "mandatory": ('Jazyk',),
                     },
                 "add": {
                     "read_only": ('id',),
                     "insert": {'id': self.new_id},
-                    "mandatory": ('Dodavatel',),
+                    "mandatory": ('Dodavatel', 'Jazyk',),
                     },
                 },
             "zarizeni": {
@@ -143,7 +145,7 @@ class ItemFrameBase:
             }
 
         self.title_action_dict = {"show": 'ZOBRAZENÍ ', "edit": 'ÚPRAVA ', "add": 'VYTVOŘENÍ ',
-                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ '}
+                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ ', "inquery": 'POPTÁVKA ', }
             
         self.current_table_entry_dict = entry_dict.get(self.current_table, {})
 
@@ -165,14 +167,6 @@ class ItemFrameBase:
         self.title_frame.pack(side=tk.TOP,fill=tk.X, padx=2, pady=2)   
         self.show_frame = tk.Frame(self.master, borderwidth=2, relief="groove")
         self.show_frame.pack(side=tk.TOP, fill=tk.X, padx=2, pady=2)
-
-
-    def update_frames(self, action):
-        """
-        Vytvoření a nastavení dalších framů v show_frame pro aktuální zobrazení.
-
-        :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu, None - žádné.
-        """
         self.top_frame = tk.Frame(self.show_frame, borderwidth=2, relief="groove")
         self.top_frame.pack(side=tk.TOP, fill=tk.X)     
         self.left_frame = tk.Frame(self.top_frame, borderwidth=2, relief="groove")
@@ -182,17 +176,39 @@ class ItemFrameBase:
         self.right_top_frame = tk.Frame(self.right_common_frame, borderwidth=2, relief="groove")
         self.right_top_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)        
         self.right_frame = tk.Frame(self.right_common_frame, borderwidth=2, relief="groove")
-        self.right_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)
+        self.right_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)        
 
-        if action:        
-            self.bottom_frame = tk.Frame(self.show_frame)
-            self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
-            save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
-                                 command=lambda: self.check_before_save(action=action))
-            save_btn.pack(side=tk.LEFT, padx=5, pady=5)
-            cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit",
-                                   command=self.current_view_instance.show_selected_item)
-            cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
+
+
+
+    def clear_item_frame(self):
+        """
+        Odstranění všech widgetů v title_frame a show_frame
+        """
+        for widget in self.title_frame.winfo_children():
+            widget.destroy()
+        for widget in self.right_frame.winfo_children():
+            widget.destroy()
+        for widget in self.right_top_frame.winfo_children():
+            widget.destroy()           
+        for widget in self.left_frame.winfo_children():
+            widget.destroy()
+
+
+    def update_frames(self):
+        """
+        Vytvoření a nastavení dalších framů v show_frame pro aktuální zobrazení.
+
+        :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu, None - žádné.
+        """
+        self.bottom_frame = tk.Frame(self.show_frame)
+        self.bottom_frame.pack(side=tk.BOTTOM, pady=2)        
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
+                             command=lambda: self.check_before_save(action=self.action))
+        save_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit",
+                               command=self.current_view_instance.show_selected_item)
+        cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
 
     def initialize_title(self, add_name_label=True):
@@ -208,6 +224,16 @@ class ItemFrameBase:
             name_label.pack(padx=2, pady=2)
 
 
+
+    def init_curr_dict(self):
+        """
+        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
+        """
+        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
+        title_action = self.title_action_dict[self.action]
+        self.title = title_action + str(self.curr_table_config["name"])        
+
+            
     def check_before_save(self, action): 
         """
         Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
@@ -396,32 +422,13 @@ class ItemFrameShow(ItemFrameBase):
     """
     Třída ItemFrameShow se stará o zobrazení vybraných položek.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, current_table, check_columns)
-        self.action = 'show'
-
-    def clear_item_frame(self):
-        """
-        Odstranění všech widgetů v title_frame a show_frame
-        """
-        for widget in self.title_frame.winfo_children():
-            widget.destroy()
-        for widget in self.show_frame.winfo_children():
-            widget.destroy()  
-
-
-    def init_curr_dict(self):
-        """
-        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
-        """        
-        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
-        title_action = self.title_action_dict[self.action]
-        self.title = title_action + str(self.curr_table_config["name"])
+        super().__init__(master, controller, col_names, current_table, check_columns, action)
                            
 
     def show_selected_item_details(self, item_values):
@@ -436,7 +443,6 @@ class ItemFrameShow(ItemFrameBase):
         self.initialize_current_entry_dict()
         self.init_curr_dict()
         self.initialize_title()
-        self.update_frames(action=None)
         self.checkbutton_states = {}
  
         for index, col in enumerate(self.col_names):
@@ -463,30 +469,73 @@ class ItemFrameShow(ItemFrameBase):
                 label.pack(fill=tk.X)
             frame.pack(fill=tk.X)              
 
-       
-class ItemFrameEdit(ItemFrameBase):
+
+class ItemFrameInquery(ItemFrameBase):
     """
-    Třída ItemFrameEdit se stará o úpravu vybraných položek.
+    Třída ItemFrameInquery se stará o zobrazení vyfiltrovaných variant pro poptávku.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, current_table, check_columns)
-        self.current_view_instance = current_view_instance
-        self.action = 'edit'
-        self.update_frames(action=self.action)      
-        
+        super().__init__(master, controller, col_names, current_table, check_columns, action)
+##        self.action = 'inquery'
+        self.update_frames()
+                          
+
+    def show_selected_item_details(self, item_values):
+        """
+        Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
+        Název položky je v title_frame, zbylé informace v show_frame.
+
+        :param item_values: n-tice řetězců obsahující hodnoty sloupců označené položky.
+        """
+        self.item_values = item_values
+        self.initialize_current_entry_dict()
+        self.init_curr_dict()
+        self.initialize_title()
+        self.checkbutton_states = {}
+ 
+        for index, col in enumerate(self.col_names):
+            if index == self.order_of_name: continue   # Vynechá název
+            item_value = self.item_values[index]
+            item_text = self.tab2hum.get(col, col)
+            if col in self.check_columns:
+                item_state = int(item_value) == 1
+                self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
+                if col in self.special_columns:
+                    frame = tk.Frame(self.right_top_frame)
+                    checkbutton = tk.Checkbutton(frame, text=item_text, borderwidth=3, relief="groove",
+                                                 variable=self.checkbutton_states[col])
+                else:
+                    frame = tk.Frame(self.right_frame)
+                    checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
+                checkbutton.pack(side=tk.LEFT, padx=5)
+                checkbutton.bind("<Enter>", lambda event, cb=checkbutton: cb.config(state="disabled"))
+                checkbutton.bind("<Leave>", lambda event, cb=checkbutton: cb.config(state="normal"))
+            else:
+                frame = tk.Frame(self.left_frame)
+                label_text = f"{item_text}:\n{item_value}"
+                label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
+                label.pack(fill=tk.X)
+            frame.pack(fill=tk.X)     
+
        
-    def init_curr_dict(self):
+class ItemFrameEdit(ItemFrameBase):
+    """
+    Třída ItemFrameEdit se stará o úpravu vybraných položek.
+    """
+    def __init__(self, master, controller, col_names, current_table, check_columns, action, current_view_instance):
         """
-        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
+        Inicializace prvků v item_frame.
+        
+        :param: Inicializovány v rodičovské třídě.
         """
-        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
-        title_action = self.title_action_dict[self.action]
-        self.title = title_action + str(self.curr_table_config["name"])        
+        super().__init__(master, controller, col_names, current_table, check_columns, action)
+        self.current_view_instance = current_view_instance
+        self.update_frames()
 
 
     def open_edit_window(self, item_values):
@@ -508,25 +557,15 @@ class ItemFrameAdd(ItemFrameBase):
     """
     Třída ItemFrameAdd se stará o tvorbu nových položek.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns, action)
         self.current_view_instance = current_view_instance
-        self.action = 'add'
-        self.update_frames(action=self.action)
-
-
-    def init_curr_dict(self):
-        """
-        Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
-        """
-        self.curr_entry_dict = self.current_table_entry_dict.get(self.action, {})
-        title_action = self.title_action_dict[self.action]
-        self.title = title_action + str(self.curr_table_config["name"])        
+        self.update_frames()
 
 
     def add_item(self, new_id, new_interne_cislo):
@@ -566,14 +605,15 @@ class ItemFrameMovements(ItemFrameBase):
     """
     Třída ItemFrameMovements se stará o příjem a výdej ve skladě.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns, current_view_instance):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
-        super().__init__(master, controller, col_names, current_table, check_columns)
+        super().__init__(master, controller, col_names, current_table, check_columns, action)
         self.current_view_instance = current_view_instance
+        self.update_frames()
         
        
     def init_curr_dict(self):
@@ -586,7 +626,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.devices = tuple(self.controller.fetch_dict("zarizeni").keys())
 
 
-    def init_item_movements(self, action, item_values, audit_log_col_names):
+    def init_item_movements(self, item_values, audit_log_col_names):
         """
         Metoda pro inicializace proměnných pro příjem a výdej skladových položek.
 
@@ -594,13 +634,11 @@ class ItemFrameMovements(ItemFrameBase):
                 item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
                 audit_log_col_names: N-tice názvů sloupců tabulky audit_log.      
         """
-        self.action = action
         self.item_values = item_values
         self.audit_log_col_names = audit_log_col_names
         self.initialize_current_entry_dict()          
         self.init_curr_dict()
-        self.initialize_title()
-        self.update_frames(action=self.action)         
+        self.initialize_title()        
         self.id_num = self.item_values[0]
         self.id_col_name = self.curr_table_config.get("id_col_name", "id")
         self.entries_al = {}
@@ -608,7 +646,7 @@ class ItemFrameMovements(ItemFrameBase):
         self.actual_unit_price = float(self.item_values[self.curr_table_config["unit_price_col"]])
 
 
-    def enter_item_movements(self, action, item_values, audit_log_col_names):
+    def enter_item_movements(self, item_values, audit_log_col_names):
         """
         Metoda pro příjem a výdej skladových položek.
 
@@ -616,7 +654,7 @@ class ItemFrameMovements(ItemFrameBase):
                 item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
                 audit_log_col_names: N-tice názvů sloupců tabulky audit_log.    
         """
-        self.init_item_movements(action, item_values, audit_log_col_names)
+        self.init_item_movements(item_values, audit_log_col_names)
         
         if self.action=='vydej' and self.actual_quantity==0:
             self.current_view_instance.show_selected_item()

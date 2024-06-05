@@ -599,8 +599,9 @@ class View:
         """           
         if self.item_frame_show is None:
             self.widget_destroy()
+            action="show"
             self.item_frame_show = ItemFrameShow(self.item_frame, self.controller, self.col_names,
-                                                 self.current_table, self.check_columns)
+                                                 self.current_table, self.check_columns, action)
             
         children = self.tree.get_children()
         if not children:

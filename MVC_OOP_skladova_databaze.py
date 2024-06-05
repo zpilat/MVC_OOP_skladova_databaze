@@ -105,9 +105,10 @@ class Controller:
         """
         item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
         col_names = self.model.fetch_col_names(table)
-        
-        self.current_item_instance = ItemFrameEdit(master, self, col_names, table,
-                                                       check_columns, self.current_view_instance)
+
+        action="edit"
+        self.current_item_instance = ItemFrameEdit(master, self, col_names, table, check_columns,
+                                                   action, self.current_view_instance)
         self.current_item_instance.open_edit_window(item_values)
 
 
@@ -167,9 +168,9 @@ class Controller:
         col_names = self.model.fetch_col_names(table)
         audit_log_col_names = self.model.fetch_col_names("audit_log")
 
-        self.current_item_instance = ItemFrameMovements(master, self, col_names, table,
-                                                        check_columns, self.current_view_instance)
-        self.current_item_instance.enter_item_movements(action, item_values, audit_log_col_names)
+        self.current_item_instance = ItemFrameMovements(master, self, col_names, table, check_columns,
+                                                        action, self.current_view_instance)
+        self.current_item_instance.enter_item_movements(item_values, audit_log_col_names)
 
 
     def add_item(self, table, id_num, id_col_name, master, check_columns):
@@ -184,9 +185,10 @@ class Controller:
         new_interne_cislo = str(self.model.get_max_interne_cislo() + 1) if table=="sklad" else None
         new_id = str(self.model.get_max_id(table, id_col_name) + 1)
         col_names = self.model.fetch_col_names(table)
-        
-        self.current_item_instance = ItemFrameAdd(master, self, col_names, table,
-                                                  check_columns, self.current_view_instance)
+
+        action="add"        
+        self.current_item_instance = ItemFrameAdd(master, self, col_names, table, check_columns,
+                                                  action, self.current_view_instance)
         self.current_item_instance.add_item(new_id, new_interne_cislo)
 
 
@@ -207,9 +209,10 @@ class Controller:
         varianty_item_values[0] = new_id
         varianty_item_values[1] = sklad_values_dict['Evidencni_cislo']
         varianty_item_values[5] = curr_unit_price if curr_unit_price else ""
-                                         
+
+        action="add"                                         
         self.current_item_instance = ItemFrameAdd(master, self, varianty_col_names, varianty_table,
-                                                   varianty_check_columns, self.current_view_instance)
+                                                  varianty_check_columns, action, self.current_view_instance)
         self.current_item_instance.add_variant(varianty_item_values)
 
 
