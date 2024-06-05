@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import tkinter.font as tkFont
 from datetime import datetime, timedelta
+import re
 
 from commonresources import CommonResources
 
@@ -179,22 +180,6 @@ class ItemFrameBase:
         self.right_frame.pack(side=tk.TOP, fill=tk.BOTH, padx=2, pady=2)        
 
 
-
-
-    def clear_item_frame(self):
-        """
-        Odstranění všech widgetů v title_frame a show_frame
-        """
-        for widget in self.title_frame.winfo_children():
-            widget.destroy()
-        for widget in self.right_frame.winfo_children():
-            widget.destroy()
-        for widget in self.right_top_frame.winfo_children():
-            widget.destroy()           
-        for widget in self.left_frame.winfo_children():
-            widget.destroy()
-
-
     def update_frames(self):
         """
         Vytvoření a nastavení dalších framů v show_frame pro aktuální zobrazení.
@@ -203,8 +188,7 @@ class ItemFrameBase:
         """
         self.bottom_frame = tk.Frame(self.show_frame)
         self.bottom_frame.pack(side=tk.BOTTOM, pady=2)        
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit",
-                             command=lambda: self.check_before_save(action=self.action))
+        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=self.check_before_save)
         save_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit",
                                command=self.current_view_instance.show_selected_item)
@@ -224,6 +208,20 @@ class ItemFrameBase:
             name_label.pack(padx=2, pady=2)
 
 
+    def clear_item_frame(self):
+        """
+        Odstranění všech widgetů v title_frame a show_frame
+        """
+        for widget in self.title_frame.winfo_children():
+            widget.destroy()
+        for widget in self.right_frame.winfo_children():
+            widget.destroy()
+        for widget in self.right_top_frame.winfo_children():
+            widget.destroy()           
+        for widget in self.left_frame.winfo_children():
+            widget.destroy()
+
+
     def init_curr_dict(self):
         """
         Metoda pro přidání slovníku hodnotami přiřazenými dle aktuální tabulky.
@@ -233,11 +231,9 @@ class ItemFrameBase:
         self.title = title_action + str(self.curr_table_config["name"])        
 
             
-    def check_before_save(self, action): 
+    def check_before_save(self): 
         """
         Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
-
-        :Params action: typ prováděné operace.
         """
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries[col].get():
@@ -267,7 +263,7 @@ class ItemFrameBase:
                     messagebox.showwarning("Chyba", f"Položka {self.tab2hum.get(col, col)} není platné reálné číslo s desetinnou tečkou.")
                     return
 
-        if action=="add":
+        if self.action=="add":
             if self.current_table=="zarizeni":
                 success = self.check_length()
                 if not success: return
@@ -276,7 +272,7 @@ class ItemFrameBase:
                 success = self.check_variant_existence()
                 if not success: return
             
-        self.save_item(action)
+        self.save_item()
 
 
     def check_length(self):
@@ -311,12 +307,9 @@ class ItemFrameBase:
         return True
 
 
-    def save_item(self, action):
+    def save_item(self):
         """
         Metoda na uložení nových / upravených dat v databázi.
-
-        :Params action: typ prováděné operace.
-        :Params selected_item_id: v případě akce "edit" je to vybrané ID položky k editaci.
         """
         self.entry_values = {}
         for col, entry in self.entries.items():
@@ -325,7 +318,7 @@ class ItemFrameBase:
         self.checkbutton_values = {col: (1 if state.get() else 0) for col, state in self.checkbutton_states.items()}
         combined_values = {**self.entry_values, **self.checkbutton_values}
                       
-        if action == "add":
+        if self.action == "add":
             if self.current_table == "varianty":
                 col_names_to_save = self.col_names[:-2]
             else:
@@ -337,7 +330,7 @@ class ItemFrameBase:
             success = self.controller.insert_new_item(self.current_table, col_names_to_save, values_to_insert)
             if not success: return
             self.id_num = int(self.new_id)
-        elif action == "edit" and self.id_num is not None:
+        elif self.action == "edit" and self.id_num is not None:
             success = self.controller.update_row(self.current_table, self.id_num, self.id_col_name, combined_values)
             if not success: return
         self.controller.show_data(self.current_table, self.id_num)
@@ -391,8 +384,8 @@ class ItemFrameBase:
                         if self.item_values:
                             entry.insert(0, self.item_values[index])                                              
                 entry.pack(fill=tk.X, padx=2, pady=3)
-                entry.bind('<Return>', lambda event: self.check_before_save(action=self.action))
-                entry.bind('<KP_Enter>', lambda event: self.check_before_save(action=self.action))                               
+                entry.bind('<Return>', lambda event: self.check_before_save())
+                entry.bind('<KP_Enter>', lambda event: self.check_before_save())                               
                 entry.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
                 self.entries[col] = entry
                 if col in self.curr_entry_dict.get("mandatory", []): entry.config(background='yellow') 
@@ -624,8 +617,7 @@ class ItemFrameMovements(ItemFrameBase):
         """
         Metoda pro inicializace proměnných pro příjem a výdej skladových položek.
 
-        :params action: Parametr s názvem akce příjem nebo výdej zboží - "prijem", "vydej".
-                item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
                 audit_log_col_names: N-tice názvů sloupců tabulky audit_log.      
         """
         self.item_values = item_values
@@ -644,8 +636,7 @@ class ItemFrameMovements(ItemFrameBase):
         """
         Metoda pro příjem a výdej skladových položek.
 
-        :params action: Parametr s názvem akce příjem nebo výdej zboží - "prijem", "vydej".
-                item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
+        :params item_values: Aktuální hodnoty z databázové tabulky dle id vybrané položky z Treeview.
                 audit_log_col_names: N-tice názvů sloupců tabulky audit_log.    
         """
         self.init_item_movements(item_values, audit_log_col_names)
@@ -670,8 +661,8 @@ class ItemFrameMovements(ItemFrameBase):
             else:
                 entry_al = tk.Entry(self.left_frame)                        
             entry_al.grid(row=idx, column=1, sticky="ew", padx=5, pady=2)
-            entry_al.bind('<Return>', lambda event: self.check_before_save(action=self.action))
-            entry_al.bind('<KP_Enter>', lambda event: self.check_before_save(action=self.action))                        
+            entry_al.bind('<Return>', lambda event: self.check_before_save())
+            entry_al.bind('<KP_Enter>', lambda event: self.check_before_save())                        
             entry_al.bind('<Escape>', lambda event: self.current_view_instance.show_selected_item())
             
             if col in self.curr_entry_dict.get("mandatory",[]): entry_al.config(background='yellow')
@@ -697,14 +688,10 @@ class ItemFrameMovements(ItemFrameBase):
         self.entries_al[col].focus()
 
 
-    def check_before_save(self, action): 
+    def check_before_save(self): 
         """
         Metoda pro kontrolu zadání povinných dat a kontrolu správnosti dat před uložením. 
-
-        :Params action: typ prováděné operace.
         """
-        self.action = action
-        
         for col in self.curr_entry_dict.get("mandatory", []):
             if not self.entries_al[col].get():
                 self.show_warning(col, f"Před uložením nejdříve zadejte položku {self.tab2hum.get(col, col)}")
@@ -745,17 +732,15 @@ class ItemFrameMovements(ItemFrameBase):
                 self.show_warning(col, f"Neplatné datum: {date_str}. Zadejte prosím platné datum.")
                 return
 
-        self.calculate_and_save(action)
+        self.calculate_and_save()
 
 
-    def calculate_and_save(self, action): 
+    def calculate_and_save(self): 
         """
         Metoda uložení dat výpočet hodnot před uložením do skladu a audit_logu a pro uložení
         změn do tabulky sklad a nového zápisu do tabulky audit_log. Pokud je při příjmu zjištěno,
         že ještě neexistuje varianta skladové položky se zadaným dodavatelem, tak připraví okno na
         vytvoření nové varianty.
-        
-        :Params action: typ prováděné operace.
         """           
         self.calculate_before_save_to_audit_log() 
         self.calculate_before_save_to_sklad()
