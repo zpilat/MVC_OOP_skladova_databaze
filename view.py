@@ -667,23 +667,19 @@ class View:
         """
         Vytvoří formulář s podklady pro poptávku.
         """
+        children = self.tree.get_children()
+        if not children:
+            messagebox.showwarning("Upozornění", "Žádné vyfiltrované položky k vytvoření poptávkového formuláře.")
+            return  
+        
         self.item_frame_show = None
         self.widget_destroy()
         action="inquiry"
         self.item_frame_inquiry = ItemFrameInquiry(self.item_frame, self.controller, self.col_names,
-                                             self.current_table, self.check_columns, action, self)
+                                             self.current_table, self.check_columns, action, self)     
 
-        self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k vytvoření poptávky.")
-        if self.selected_item is None:
-            return  
-       
-        try:        
-            item_values = self.tree.item(self.selected_item, 'values')
-            self.item_frame_inquiry.create_inquiry_form(item_values)
-        except Exception as e:
-            messagebox.showwarning("Upozornění", f"Při zobrazování došlo k chybě {e}.")
-            return
-
+        self.item_frame_inquiry.create_inquiry_form(self.tree)
+   
 
     def delete_row(self):
         """

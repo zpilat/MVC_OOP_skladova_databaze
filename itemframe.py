@@ -484,29 +484,39 @@ class ItemFrameInquiry(ItemFrameBase):
         self.update_frames()
                           
 
-    def create_inquiry_form(self, item_values):
+    def create_inquiry_form(self, tree):
         """
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
         Název položky je v title_frame, zbylé informace v show_frame.
 
         :param item_values: n-tice řetězců obsahující hodnoty sloupců označené položky.
         """
-        self.item_values = item_values
         self.initialize_current_entry_dict()
         self.init_curr_dict()
-        self.initialize_title()       
- 
-        for index, col in enumerate(self.col_names):
-            if index == self.order_of_name: continue   # Vynechá název
-            item_value = self.item_values[index]
-            item_text = self.tab2hum.get(col, col)
-            frame = tk.Frame(self.left_frame)
-            label_text = f"{item_text}:\n{item_value}"
-            label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
-            label.pack(fill=tk.X)
-            frame.pack(fill=tk.X)     
+##        self.initialize_title()
+        self.entries_inq = {}
 
-       
+        self.left_frame.columnconfigure(0, weight=1)
+
+        for index, col in enumerate(["Nazev_varianty", "Cislo_varianty"]):
+            item_text = self.tab2hum.get(col, col)
+            label = tk.Label(self.left_frame, text=item_text)
+            label.grid(row=0, column=index, sticky="ew", padx=5, pady=2)            
+            
+        for index1, item in enumerate(tree.get_children()):
+            idx = 0
+            item_values = tree.item(item, 'values')
+            for index2, col in enumerate(self.col_names):
+                if col in ["Nazev_varianty", "Cislo_varianty"]:
+                    item_value = item_values[index2]
+                    entry_inq = tk.Entry(self.left_frame)
+                    entry_inq.grid(row=index1+1, column=idx, sticky="ew", padx=5, pady=2)
+                    entry_inq.delete(0, "end")
+                    entry_inq.insert(0, item_value)
+                    self.entries_inq[col] = entry_inq
+                    idx += 1
+
+      
 class ItemFrameEdit(ItemFrameBase):
     """
     Třída ItemFrameEdit se stará o úpravu vybraných položek.
@@ -644,11 +654,11 @@ class ItemFrameMovements(ItemFrameBase):
             self.current_view_instance.show_selected_item()
             messagebox.showwarning("Chyba", f"Položka aktuálně není na skladě, nelze provést výdej!")
             return
-        
+
+        self.left_frame.columnconfigure(1, weight=1)
         for idx, col in enumerate(self.audit_log_col_names):
             if col in self.col_names:
                 index = self.col_names.index(col)
-            self.left_frame.columnconfigure(1, weight=1)
             label = tk.Label(self.left_frame, text=self.tab2hum.get(col, col))
             label.grid(row=idx, column=0, sticky="ew", padx=5, pady=2)
             if col == 'Pouzite_zarizeni':
