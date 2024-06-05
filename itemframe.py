@@ -145,7 +145,7 @@ class ItemFrameBase:
             }
 
         self.title_action_dict = {"show": 'ZOBRAZENÍ ', "edit": 'ÚPRAVA ', "add": 'VYTVOŘENÍ ',
-                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ ', "inquery": 'POPTÁVKA ', }
+                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ ', "inquiry": 'POPTÁVKA ', }
             
         self.current_table_entry_dict = entry_dict.get(self.current_table, {})
 
@@ -222,7 +222,6 @@ class ItemFrameBase:
             name_text = f"{self.tab2hum[self.col_names[self.order_of_name]]}: \n {str(self.item_values[self.order_of_name])}"
             name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font, text=name_text)
             name_label.pack(padx=2, pady=2)
-
 
 
     def init_curr_dict(self):
@@ -470,22 +469,22 @@ class ItemFrameShow(ItemFrameBase):
             frame.pack(fill=tk.X)              
 
 
-class ItemFrameInquery(ItemFrameBase):
+class ItemFrameInquiry(ItemFrameBase):
     """
-    Třída ItemFrameInquery se stará o zobrazení vyfiltrovaných variant pro poptávku.
+    Třída ItemFrameInquiry se stará o zobrazení vyfiltrovaných variant pro poptávku.
     """
-    def __init__(self, master, controller, col_names, current_table, check_columns, action):
+    def __init__(self, master, controller, col_names, current_table, check_columns, action, current_view_instance):
         """
         Inicializace prvků v item_frame.
         
         :param: Inicializovány v rodičovské třídě.
         """
         super().__init__(master, controller, col_names, current_table, check_columns, action)
-##        self.action = 'inquery'
+        self.current_view_instance = current_view_instance
         self.update_frames()
                           
 
-    def show_selected_item_details(self, item_values):
+    def create_inquiry_form(self, item_values):
         """
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
         Název položky je v title_frame, zbylé informace v show_frame.
@@ -495,31 +494,16 @@ class ItemFrameInquery(ItemFrameBase):
         self.item_values = item_values
         self.initialize_current_entry_dict()
         self.init_curr_dict()
-        self.initialize_title()
-        self.checkbutton_states = {}
+        self.initialize_title()       
  
         for index, col in enumerate(self.col_names):
             if index == self.order_of_name: continue   # Vynechá název
             item_value = self.item_values[index]
             item_text = self.tab2hum.get(col, col)
-            if col in self.check_columns:
-                item_state = int(item_value) == 1
-                self.checkbutton_states[col] = tk.BooleanVar(value=item_state)
-                if col in self.special_columns:
-                    frame = tk.Frame(self.right_top_frame)
-                    checkbutton = tk.Checkbutton(frame, text=item_text, borderwidth=3, relief="groove",
-                                                 variable=self.checkbutton_states[col])
-                else:
-                    frame = tk.Frame(self.right_frame)
-                    checkbutton = tk.Checkbutton(frame, text=item_text, variable=self.checkbutton_states[col])
-                checkbutton.pack(side=tk.LEFT, padx=5)
-                checkbutton.bind("<Enter>", lambda event, cb=checkbutton: cb.config(state="disabled"))
-                checkbutton.bind("<Leave>", lambda event, cb=checkbutton: cb.config(state="normal"))
-            else:
-                frame = tk.Frame(self.left_frame)
-                label_text = f"{item_text}:\n{item_value}"
-                label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
-                label.pack(fill=tk.X)
+            frame = tk.Frame(self.left_frame)
+            label_text = f"{item_text}:\n{item_value}"
+            label = tk.Label(frame, text=label_text, borderwidth=2, relief="ridge", wraplength=250)
+            label.pack(fill=tk.X)
             frame.pack(fill=tk.X)     
 
        

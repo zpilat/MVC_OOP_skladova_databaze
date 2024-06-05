@@ -164,10 +164,12 @@ class Controller:
         :param table: Název tabulky pro zobrazení.
         :param id_num: Identifikační číslo položky pro zobrazení.
         """
+        print(table, id_num, id_col_name, master, check_columns, action)
         item_values = self.model.fetch_item_for_editing(table, id_num, id_col_name)
         col_names = self.model.fetch_col_names(table)
         audit_log_col_names = self.model.fetch_col_names("audit_log")
 
+        
         self.current_item_instance = ItemFrameMovements(master, self, col_names, table, check_columns,
                                                         action, self.current_view_instance)
         self.current_item_instance.enter_item_movements(item_values, audit_log_col_names)

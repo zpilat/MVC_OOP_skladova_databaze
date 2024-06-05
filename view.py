@@ -130,6 +130,7 @@ class View:
             "varianty": {
                 "specialized_menu_dict": {
                     "Varianty": [("Upravit variantu", self.edit_selected_item),],
+                    "Poptávky": [("Vytvoř poptávku", self.create_inquiry_form),],                    
                     },
                 "context_menu_list": [
                     ("Upravit variantu", self.edit_selected_item),
@@ -661,6 +662,27 @@ class View:
         self.id_num = None
         self.controller.add_item(self.current_table, self.id_num, self.id_col_name,
                                      self.item_frame, self.check_columns)
+
+    def create_inquiry_form(self):
+        """
+        Vytvoří formulář s podklady pro poptávku.
+        """
+        self.item_frame_show = None
+        self.widget_destroy()
+        action="inquiry"
+        self.item_frame_inquiry = ItemFrameInquiry(self.item_frame, self.controller, self.col_names,
+                                             self.current_table, self.check_columns, action, self)
+
+        self.selected_item = self.select_item(warning_message="Není vybrána žádná položka k vytvoření poptávky.")
+        if self.selected_item is None:
+            return  
+       
+        try:        
+            item_values = self.tree.item(self.selected_item, 'values')
+            self.item_frame_inquiry.create_inquiry_form(item_values)
+        except Exception as e:
+            messagebox.showwarning("Upozornění", f"Při zobrazování došlo k chybě {e}.")
+            return
 
 
     def delete_row(self):
