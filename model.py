@@ -109,6 +109,26 @@ class Model:
         return self.cursor.fetchone()
 
 
+    def fetch_data_for_inquiry(self, ids):
+        """
+        Načte specifická data na základě ID z tabulky varianty a získá odpovídající data ze tabulky sklad.
+
+        :param ids: Seznam ID položek z tabulky varianty.
+        :return: Seznam n-tic s hodnotami: rozdíl 'Min_Mnozstvi_ks' - 'Mnozstvi_ks_m_l',
+                 jednotky, název varianty, číslo varianty pro každou odpovídající položku.
+        """
+        ids_placeholder = ','.join('?' for _ in ids)
+        
+        query = f"""
+        SELECT (s.Min_Mnozstvi_ks - s.Mnozstvi_ks_m_l) AS Rozdil, s.Jednotky, v.Cislo_varianty, v.Nazev_varianty
+        FROM sklad s
+        JOIN varianty v ON s.Evidencni_cislo = v.id_sklad
+        WHERE v.id IN ({ids_placeholder})
+        """
+        self.cursor.execute(query, ids)
+        return self.cursor.fetchall()
+
+
     def check_existence(self, id_sklad_value, id_dodavatele_value, current_table):
         """
         SQL dotaz pro ověření existence varianty před uložením nové.

@@ -319,7 +319,23 @@ class Controller:
         except Exception as e:
             messagebox.showerror("Chyba", f"Nastala chyba při přidávání sloupce {new_col_name}: {e}")
             return False
-        return True            
+        return True
+
+    def fetch_data_for_inquiry(self, ids):
+        """
+        Načte specifická data na základě ID z tabulky varianty a získá odpovídající data ze tabulek varianty a sklad.
+
+        :param ids: Seznam nebo n-tice ID položek z tabulky varianty.
+        :return: Seznam n-tic s hodnotami rozdíl 'Min_Mnozstvi_ks' - 'Mnozstvi_ks_m_l', jednotky ,
+                 název varianty, číslo varianty pro každou odpovídající položku.
+        """
+        
+        try:
+            data_for_inquiry = self.model.fetch_data_for_inquiry(ids)
+        except Exception as e:
+            messagebox.showwarning("Varování", f"Chyba při načítání dat z databáze: {e}!")
+            return False
+        return data_for_inquiry
     
 
     def export_csv(self, table=None, tree=None):

@@ -490,13 +490,18 @@ class ItemFrameInquiry(ItemFrameBase):
         self.initialize_current_entry_dict()
         self.init_curr_dict()
         self.initialize_title(add_name_label=False, selected_supplier=selected_supplier)
+        
+        ids = []
+        for item in tree.get_children():
+            item_values = tree.item(item, 'values') 
+            ids.append(item_values[0])          
+        data_for_inquiry = self.controller.fetch_data_for_inquiry(ids)
        
         self.inquiry_texts = tk.Text(self.left_frame, font=self.default_font)
         self.inquiry_texts.pack()
-        for index, item in enumerate(tree.get_children(), start=1):
-            item_values = tree.item(item, 'values') 
-            item_value = item_values[4] + "  " + item_values[3] + "\n"
-            self.inquiry_texts.insert(f"{index}.0", item_value)                               
+        for index, item in enumerate(data_for_inquiry, start=1):
+            rozdil, jednotky, nazev_varianty, cislo_varianty = item
+            self.inquiry_texts.insert(f"{index}.0", f"{rozdil} {jednotky} {nazev_varianty} {cislo_varianty}\n")                          
 
       
 class ItemFrameEdit(ItemFrameBase):
