@@ -5,7 +5,7 @@ class CommonResources:
     Třída uchovávající všechna konfigurační data, slovníky, seznamy, n-tice a metody pro přístup
     k specifickým podskupinám těchto dat.
     """
-    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.48 MVC OOP'
+    main_window_title = 'Skladová databáze HPM HEAT SK - verze 1.50 MVC OOP'
     
     tab2hum = {
         'Ucetnictvi': 'Účetnictví', 'Kriticky_dil': 'Kritický díl', 'Evidencni_cislo': 'Evid. č.',
@@ -115,5 +115,26 @@ class CommonResources:
                      "focus": 'name',
                      "name": "UŽIVATELE",
                      },
-        }    
+        }
+    
+    item_frame_unit_dict = {
+        "ks": {"SK": "ks", "DE": "Stück", "EN": "pcs"},
+        "kg": {"SK": "kg", "DE": "kg", "EN": "kg"},
+        "pár": {"SK": "pár", "DE": "Paar", "EN": "pair"},
+        "l": {"SK": "l", "DE": "l", "EN": "l"},
+        "m": {"SK": "m", "DE": "m", "EN": "m"},
+        "balení": {"SK": "balenie", "DE": "Verpacken", "EN": "packing"},
+        }
+    
+    item_frame_language_dict = {
+        "email_subject": {"CZ": "Poptávka", "SK": "Dopyt", "DE": "Anfrage", "EN": "Inquiry"},
+        "adress": {"CZ": "Dobrý den,", "SK": "Dobrý deň,", "DE": "Guten Tag,", "EN": "Hello,"},
+        "inquiry_email_start" : {
+            "CZ": "prosím vás o cenovou nabídku a dodací termín pro následující položky:",
+            "SK": "žiadam o cenovú ponuku a termín dodania nasledujúcich položiek:",
+            "DE": "ich bitte um einen Preis und ein Liefertermin für die folgenden Artikel:",
+            "EN": "I would like to request a quotation and delivery date for the following items:",
+            },
+        }
+        
 

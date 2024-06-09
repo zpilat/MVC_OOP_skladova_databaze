@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import os
 import sqlite3
+import webbrowser
+import urllib.parse
 
 from model import Model
 from view import *
@@ -321,6 +323,7 @@ class Controller:
             return False
         return True
 
+
     def fetch_data_for_inquiry(self, ids):
         """
         Načte specifická data na základě ID z tabulky varianty a získá odpovídající data ze tabulek varianty a sklad.
@@ -336,6 +339,38 @@ class Controller:
             messagebox.showwarning("Varování", f"Chyba při načítání dat z databáze: {e}!")
             return False
         return data_for_inquiry
+
+
+    def fetch_supplier_for_inquiry(self, id_name):
+        """
+        Získání dat dodavatele, pro kterého se tvoří poptávka, na základě získaného jména dodavatel.
+        
+        :param id_num: Jméno dodavatele pro zobrazení.
+        :return slovník s klíči názvy sloupců a hodnotami pro dodavatele s jménem id_name.
+        """
+        table="dodavatele"
+        col_name="Dodavatel"
+
+        col_names = self.model.fetch_col_names(table)        
+        item_values = self.model.fetch_item_for_editing(table, id_name, col_name)
+
+        return dict(zip(col_names, item_values))
+
+
+    def open_email_client(self, recipient, subject, body):
+        """
+        Otevře nový email výchozího emailového klienta s předvyplněnými údaji (emailová adresa, předmět a tělo zprávy).
+
+        :params recipient: E-mailová adresa příjemce.
+                subject: Předmět e-mailu.
+                body: Tělo e-mailu - vytvořená poptávka.
+        """     
+        subject_encoded = urllib.parse.quote(subject)
+        body_encoded = urllib.parse.quote(body)
+
+        mailto_link = f"mailto:{recipient}?subject={subject_encoded}&body={body_encoded}"
+        
+        webbrowser.open(mailto_link)    
     
 
     def export_csv(self, table=None, tree=None):

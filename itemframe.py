@@ -30,7 +30,9 @@ class ItemFrameBase:
         self.suppliers = tuple(sorted(self.suppliers_dict.keys()))
         self.current_user = self.controller.current_user
         self.name_of_user = self.controller.name_of_user
-        self.unit_tuple = ("ks", "kg", "pár", "l", "m", "balení")
+        self.unit_dict = CommonResources.item_frame_unit_dict
+        self.lang_dict = CommonResources.item_frame_language_dict
+        self.unit_tuple = tuple(self.unit_dict.keys())
         self.curr_table_config = CommonResources.item_frame_table_config[self.current_table]
         self.special_columns = ('Ucetnictvi', 'Kriticky_dil', 'Pod_minimem')
         self.new_id = None
@@ -187,9 +189,12 @@ class ItemFrameBase:
         :param action: Typ akce pro tlačítko uložit - add pro přidání nebo edit pro úpravu, None - žádné.
         """
         self.bottom_frame = tk.Frame(self.show_frame)
-        self.bottom_frame.pack(side=tk.BOTTOM, pady=2)        
-        save_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=self.check_before_save)
-        save_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.bottom_frame.pack(side=tk.BOTTOM, pady=2)
+        if self.action == "inquiry":
+            confirm_btn = tk.Button(self.bottom_frame, width=15, text="Poslat", command=self.send_inquiry)
+        else:
+            confirm_btn = tk.Button(self.bottom_frame, width=15, text="Uložit", command=self.check_before_save)
+        confirm_btn.pack(side=tk.LEFT, padx=5, pady=5)
         cancel_btn = tk.Button(self.bottom_frame, width=15, text="Zrušit",
                                command=self.current_view_instance.show_selected_item)
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
@@ -490,18 +495,38 @@ class ItemFrameInquiry(ItemFrameBase):
         self.initialize_current_entry_dict()
         self.init_curr_dict()
         self.initialize_title(add_name_label=False, selected_supplier=selected_supplier)
+
+        selected_supplier_dict = self.controller.fetch_supplier_for_inquiry(selected_supplier)
+        supplier_lang = selected_supplier_dict["Jazyk"]
+        self.supplier_email = selected_supplier_dict["E-mail"]
+        self.email_subject = self.lang_dict["email_subject"][supplier_lang]
+        inquiry_email_adress = self.lang_dict["adress"][supplier_lang]
+        inquiry_email_start = self.lang_dict["inquiry_email_start"][supplier_lang]
         
         ids = []
         for item in tree.get_children():
             item_values = tree.item(item, 'values') 
             ids.append(item_values[0])          
         data_for_inquiry = self.controller.fetch_data_for_inquiry(ids)
-       
+
         self.inquiry_texts = tk.Text(self.left_frame, font=self.default_font)
         self.inquiry_texts.pack()
-        for index, item in enumerate(data_for_inquiry, start=1):
+        self.inquiry_texts.insert(1.0, inquiry_email_adress + "\n")      
+        self.inquiry_texts.insert(3.0, inquiry_email_start + 2*"\n")
+        for index, item in enumerate(data_for_inquiry, start=4):
             rozdil, jednotky, nazev_varianty, cislo_varianty = item
-            self.inquiry_texts.insert(f"{index}.0", f"{rozdil} {jednotky} {nazev_varianty} {cislo_varianty}\n")                          
+            if supplier_lang != "CZ":
+                jednotky = self.unit_dict[jednotky][supplier_lang]
+            self.inquiry_texts.insert(f"{index}.0", f"{rozdil} {jednotky}  {nazev_varianty}  {cislo_varianty}\n")
+
+
+    def send_inquiry(self):
+        """
+        Zavolá metodu v controlleru, která otevře nový email výchozího emailového klienta s předvyplněnými údaji
+        (emailová adresa příjemce, předmět a tělo zprávy).
+        """
+        email_body = self.inquiry_texts.get("1.0", "end-1c")
+        self.controller.open_email_client(self.supplier_email, self.email_subject, email_body)
 
       
 class ItemFrameEdit(ItemFrameBase):
