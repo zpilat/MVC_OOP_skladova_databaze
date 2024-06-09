@@ -146,7 +146,7 @@ class ItemFrameBase:
             }
 
         self.title_action_dict = {"show": 'ZOBRAZENÍ ', "edit": 'ÚPRAVA ', "add": 'VYTVOŘENÍ ',
-                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ ', "inquiry": 'POPTÁVKA ', }
+                                  "prijem": 'PŘÍJEM ', "vydej": 'VÝDEJ ', "inquiry": 'VYTVOŘENÍ POPTÁVKY PRO ', }
             
         self.current_table_entry_dict = entry_dict.get(self.current_table, {})
 
@@ -195,15 +195,18 @@ class ItemFrameBase:
         cancel_btn.pack(side=tk.LEFT, padx=5, pady=5)
 
 
-    def initialize_title(self, add_name_label=True):
+    def initialize_title(self, add_name_label=True, selected_supplier=None):
         """
         Vytvoření nadpisu dle typu zobrazovaných dat.
         """
         self.order_of_name = self.curr_table_config["order_of_name"]
         title_label = tk.Label(self.title_frame, bg="yellow", text=self.title, font=self.custom_font)
         title_label.pack(padx=2, pady=2)
-        if add_name_label:
-            name_text = f"{self.tab2hum[self.col_names[self.order_of_name]]}: \n {str(self.item_values[self.order_of_name])}"
+        if add_name_label or selected_supplier:
+            if add_name_label:
+                name_text = f"{self.tab2hum[self.col_names[self.order_of_name]]}: \n {str(self.item_values[self.order_of_name])}"
+            elif selected_supplier:
+                name_text = f"Dodavatel: {selected_supplier}"
             name_label = tk.Label(self.title_frame, bg="yellow", wraplength=400, font=self.custom_font, text=name_text)
             name_label.pack(padx=2, pady=2)
 
@@ -477,7 +480,7 @@ class ItemFrameInquiry(ItemFrameBase):
         self.update_frames()
                           
 
-    def create_inquiry_form(self, tree):
+    def create_inquiry_form(self, tree, selected_supplier):
         """
         Metoda pro zobrazení vybrané položky z Treeview ve frame item_frame
         Název položky je v title_frame, zbylé informace v show_frame.
@@ -486,28 +489,14 @@ class ItemFrameInquiry(ItemFrameBase):
         """
         self.initialize_current_entry_dict()
         self.init_curr_dict()
-##        self.initialize_title()
-        self.entries_inq = {}
-
-        self.left_frame.columnconfigure(0, weight=1)
-
-        for index, col in enumerate(["Nazev_varianty", "Cislo_varianty"]):
-            item_text = self.tab2hum.get(col, col)
-            label = tk.Label(self.left_frame, text=item_text)
-            label.grid(row=0, column=index, sticky="ew", padx=5, pady=2)            
-            
-        for index1, item in enumerate(tree.get_children()):
-            idx = 0
-            item_values = tree.item(item, 'values')
-            for index2, col in enumerate(self.col_names):
-                if col in ["Nazev_varianty", "Cislo_varianty"]:
-                    item_value = item_values[index2]
-                    entry_inq = tk.Entry(self.left_frame)
-                    entry_inq.grid(row=index1+1, column=idx, sticky="ew", padx=5, pady=2)
-                    entry_inq.delete(0, "end")
-                    entry_inq.insert(0, item_value)
-                    self.entries_inq[col] = entry_inq
-                    idx += 1
+        self.initialize_title(add_name_label=False, selected_supplier=selected_supplier)
+       
+        self.inquiry_texts = tk.Text(self.left_frame, font=self.default_font)
+        self.inquiry_texts.pack()
+        for index, item in enumerate(tree.get_children(), start=1):
+            item_values = tree.item(item, 'values') 
+            item_value = item_values[4] + "  " + item_values[3] + "\n"
+            self.inquiry_texts.insert(f"{index}.0", item_value)                               
 
       
 class ItemFrameEdit(ItemFrameBase):

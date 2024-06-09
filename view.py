@@ -667,9 +667,14 @@ class View:
         """
         Vytvoří formulář s podklady pro poptávku.
         """
+        selected_supplier = self.supplier_combobox.get()
+        if selected_supplier == "VŠE":
+            messagebox.showwarning("Upozornění", "Není vybraný dodavatel pro vytvoření poptávky!")
+            return
+        
         children = self.tree.get_children()
         if not children:
-            messagebox.showwarning("Upozornění", "Žádné vyfiltrované položky k vytvoření poptávkového formuláře.")
+            messagebox.showwarning("Upozornění", "Žádné vyfiltrované položky k vytvoření poptávkového formuláře!")
             return  
         
         self.item_frame_show = None
@@ -678,7 +683,7 @@ class View:
         self.item_frame_inquiry = ItemFrameInquiry(self.item_frame, self.controller, self.col_names,
                                              self.current_table, self.check_columns, action, self)     
 
-        self.item_frame_inquiry.create_inquiry_form(self.tree)
+        self.item_frame_inquiry.create_inquiry_form(self.tree, selected_supplier)
    
 
     def delete_row(self):
